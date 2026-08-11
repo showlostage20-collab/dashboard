@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>堆高機維修管理系統</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-sidebar:#0b1220;
+    --bg-sidebar-hover:#161f30;
+    --bg-main:#f2f4f8;
+    --card:#ffffff;
+    --border:#e2e6ee;
+    --border-strong:#c8cedb;
+    --text:#161c2b;
+    --text-muted:#6b7387;
+    --text-faint:#9aa1b3;
+    --blue:#2f5fed;
+    --blue-dark:#1f42b8;
+    --blue-soft:#eaf0ff;
+    --amber:#e8940c;
+    --amber-soft:#fff3de;
+    --red:#dd3d3d;
+    --red-soft:#fdeaea;
+    --green:#189968;
+    --green-soft:#e5f8f0;
+    --purple:#7c4fe0;
+    --purple-soft:#f1eafe;
+    --gray:#8890a0;
+    --gray-soft:#eef0f4;
+    --radius:10px;
+    --sidebar-w:240px;
+    --sidebar-w-collapsed:72px;
+    --font-ui:'Noto Sans TC',-apple-system,BlinkMacSystemFont,sans-serif;
+    --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:var(--font-ui);
+    background:var(--bg-main);
+    color:var(--text);
+    display:flex;
+    height:100vh;
+    overflow:hidden;
+    font-size:14px;
+  }
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:#cfd4e0;border-radius:4px;}
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    width:var(--sidebar-w);
+    min-width:var(--sidebar-w);
+    background:var(--bg-sidebar);
+    color:#c7cde0;
+    display:flex;
+    flex-direction:column;
+    padding:20px 14px;
+    transition:width .18s ease, min-width .18s ease, padding .18s ease;
+    position:relative;
+  }
+  .sidebar.collapsed{width:var(--sidebar-w-collapsed);min-width:var(--sidebar-w-collapsed);padding:20px 10px;}
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:6px 8px 22px 8px;
+    border-bottom:1px solid #1c2740;
+    margin-bottom:16px;
+  }
+  .sidebar.collapsed .brand{justify-content:center;padding:6px 0 22px 0;}
+  .brand-mark{
+    width:36px;height:36px;border-radius:9px;
+    background:linear-gradient(145deg,var(--blue),var(--blue-dark));
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+  }
+  .brand-mark svg{width:20px;height:20px;}
+  .brand-text{line-height:1.25;white-space:nowrap;overflow:hidden;}
+  .sidebar.collapsed .brand-text{display:none;}
+  .brand-text .t1{font-weight:900;font-size:15px;color:#fff;letter-spacing:.5px;}
+  .brand-text .t2{font-size:11px;color:#7c85a3;font-family:var(--font-mono);}
+
+  .collapse-toggle{
+    position:absolute;top:24px;right:-12px;width:24px;height:24px;border-radius:50%;
+    background:var(--blue);border:2px solid var(--bg-main);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;color:#fff;z-index:5;
+    transition:transform .18s ease;
+  }
+  .collapse-toggle svg{width:12px;height:12px;}
+  .sidebar.collapsed .collapse-toggle svg{transform:rotate(180deg);}
+  .collapse-toggle:hover{background:var(--blue-dark);}
+
+  .nav{display:flex;flex-direction:column;gap:3px;flex:1;overflow-y:auto;overflow-x:hidden;}
+  .nav-section-label{
+    font-size:10.5px;color:#4c5470;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+    padding:14px 12px 6px 12px;white-space:nowrap;overflow:hidden;
+  }
+  .sidebar.collapsed .nav-section-label{opacity:0;height:0;padding:6px 0 0 0;overflow:hidden;}
+  .nav-item{
+    display:flex;align-items:center;gap:11px;
+    padding:10px 12px;border-radius:8px;
+    cursor:pointer;color:#a7aec6;font-weight:500;
+    transition:background .12s,color .12s;
+    user-select:none;position:relative;white-space:nowrap;
+  }
+  .sidebar.collapsed .nav-item{justify-content:center;padding:11px 0;}
+  .nav-item svg{width:18px;height:18px;flex-shrink:0;opacity:.85;}
+  .nav-item .label{overflow:hidden;text-overflow:ellipsis;}
+  .sidebar.collapsed .nav-item .label{display:none;}
+  .nav-item:hover{background:var(--bg-sidebar-hover);color:#fff;}
+  .nav-item.active{background:var(--blue);color:#fff;}
+  .nav-item.active svg{opacity:1;}
+  .nav-item .nav-badge{
+    margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;
+    padding:1px 6px;border-radius:20px;font-family:var(--font-mono);
+  }
+  .sidebar.collapsed .nav-item .nav-badge{
+    position:absolute;top:4px;right:10px;margin-left:0;padding:2px 5px;font-size:9px;
+  }
+  .sidebar-foot{
+    font-size:11px;color:#4c5470;padding:10px 8px 0 8px;
+    border-top:1px solid #1c2740;margin-top:12px;font-family:var(--font-mono);white-space:nowrap;overflow:hidden;
+  }
+  .sidebar.collapsed .sidebar-foot{opacity:0;height:0;padding:0;border:none;margin:0;}
+
+  /* tooltip for collapsed nav */
+  .sidebar.collapsed .nav-item::after{
+    content:attr(data-label);
+    position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%) scale(.9);
+    background:#161c2b;color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;font-weight:600;
+    white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s,transform .12s;z-index:50;
+    box-shadow:0 4px 14px rgba(0,0,0,.25);
+  }
+  .sidebar.collapsed .nav-item:hover::after{opacity:1;transform:translateY(-50%) scale(1);}
+
+  /* ---------- Main ---------- */
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+  .topbar{
+    padding:18px 28px;background:var(--card);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  }
+  .topbar h1{font-size:19px;font-weight:900;}
+  .topbar .sub{font-size:12px;color:var(--text-muted);margin-top:2px;}
+  .content{flex:1;overflow-y:auto;padding:24px 28px 60px 28px;}
+
+  .btn{
+    border:none;border-radius:8px;padding:10px 16px;font-family:var(--font-ui);
+    font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+    transition:transform .08s, box-shadow .12s, background .12s;white-space:nowrap;
+  }
+  .btn:active{transform:scale(.97);}
+  .btn-primary{background:var(--blue);color:#fff;box-shadow:0 2px 8px rgba(47,95,237,.28);}
+  .btn-primary:hover{background:var(--blue-dark);}
+  .btn-ghost{background:var(--card);color:var(--text);border:1px solid var(--border-strong);}
+  .btn-ghost:hover{background:var(--gray-soft);}
+  .btn-danger{background:var(--red-soft);color:var(--red);}
+  .btn-danger:hover{background:#f9d5d5;}
+  .btn-sm{padding:6px 10px;font-size:12px;border-radius:6px;}
+  .btn svg{width:14px;height:14px;}
+
+  /* ---------- Toolbar / filters ---------- */
+  .toolbar{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
+  .search-box{flex:1;min-width:220px;position:relative;}
+  .search-box input{
+    width:100%;padding:10px 14px 10px 38px;border:1px solid var(--border-strong);
+    border-radius:8px;font-size:13px;font-family:var(--font-ui);background:var(--card);
+  }
+  .search-box input:focus{outline:none;border-color:var(--blue);}
+  .search-box svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--text-faint);}
+  select.filter{
+    padding:10px 14px;border:1px solid var(--border-strong);border-radius:8px;
+    font-size:13px;font-family:var(--font-ui);background:var(--card);color:var(--text);cursor:pointer;
+  }
+  select.filter:focus{outline:none;border-color:var(--blue);}
+
+  /* ---------- Stat cards ---------- */
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
+  .stat-card{
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:16px 18px;position:relative;overflow:hidden;
+  }
+  .stat-card .label{font-size:12px;color:var(--text-muted);font-weight:500;}
+  .stat-card .value{font-size:26px;font-weight:900;font-family:var(--font-mono);margin-top:6px;}
+  .stat-card .bar{position:absolute;left:0;top:0;bottom:0;width:4px;}
+  .stat-card.blue .bar{background:var(--blue);}
+  .stat-card.amber .bar{background:var(--amber);}
+  .stat-card.red .bar{background:var(--red);}
+  .stat-card.green .bar{background:var(--green);}
+  .stat-card.purple .bar{background:var(--purple);}
+
+  /* ---------- Table ---------- */
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;}
+  table{width:100%;border-collapse:collapse;min-width:640px;}
+  thead th{
+    text-align:left;font-size:11.5px;color:var(--text-muted);font-weight:700;
+    text-transform:uppercase;letter-spacing:.4px;padding:12px 16px;background:#f8f9fc;
+    border-bottom:1px solid var(--border);white-space:nowrap;
+  }
+  tbody td{padding:13px 16px;border-bottom:1px solid #eef0f5;font-size:13.5px;vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr{transition:background .1s;}
+  tbody tr:hover{background:#f8f9fd;}
+  .mono{font-family:var(--font-mono);}
+  .cell-strong{font-weight:700;}
+  .cell-sub{font-size:11.5px;color:var(--text-faint);margin-top:2px;}
+  .row-actions{display:flex;gap:6px;}
+  .icon-btn{
+    width:30px;height:30px;border-radius:7px;border:1px solid var(--border-strong);
+    background:var(--card);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-muted);
+  }
+  .icon-btn:hover{background:var(--gray-soft);color:var(--text);}
+  .icon-btn svg{width:14px;height:14px;}
+
+  .badge{
+    display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;
+    font-size:11.5px;font-weight:700;white-space:nowrap;
+  }
+  .badge-dot{width:6px;height:6px;border-radius:50%;}
+  .badge.blue{background:var(--blue-soft);color:var(--blue-dark);}
+  .badge.amber{background:var(--amber-soft);color:#9a6100;}
+  .badge.red{background:var(--red-soft);color:var(--red);}
+  .badge.green{background:var(--green-soft);color:var(--green);}
+  .badge.gray{background:var(--gray-soft);color:var(--gray);}
+  .badge.purple{background:var(--purple-soft);color:var(--purple);}
+
+  .power-tag{
+    display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;
+    padding:3px 9px;border-radius:6px;font-family:var(--font-mono);
+  }
+  .power-tag.電動{background:#e6f4ea;color:#1f7a3d;}
+  .power-tag.柴油{background:#fdeee2;color:#a84b12;}
+  .power-tag.汽油{background:#eef0fb;color:#4341a8;}
+  .power-tag.其他{background:var(--gray-soft);color:var(--gray);}
+
+  /* ---------- Cycle gauge (signature element) ---------- */
+  .cycle-track{position:relative;width:120px;height:8px;background:#eceff5;border-radius:6px;overflow:visible;}
+  .cycle-fill{position:absolute;left:0;top:0;bottom:0;border-radius:6px;}
+  .cycle-fill.green{background:var(--green);}
+  .cycle-fill.amber{background:var(--amber);}
+  .cycle-fill.red{background:var(--red);}
+  .cycle-marker{position:absolute;top:50%;transform:translate(-50%,-50%);width:14px;height:14px;display:flex;align-items:center;justify-content:center;}
+  .cycle-marker svg{width:14px;height:14px;}
+  .cycle-label{font-size:11px;color:var(--text-muted);margin-top:5px;font-family:var(--font-mono);}
+
+  /* ---------- Empty state ---------- */
+  .empty{padding:70px 20px;text-align:center;color:var(--text-faint);}
+  .empty svg{width:44px;height:44px;margin-bottom:14px;opacity:.5;}
+  .empty .msg{font-size:14px;font-weight:600;color:var(--text-muted);}
+  .empty .hint{font-size:12px;margin-top:4px;}
+
+  /* ---------- Modal ---------- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(11,18,32,.55);display:none;
+    align-items:flex-start;justify-content:center;z-index:100;padding:40px 20px;overflow-y:auto;
+    backdrop-filter:blur(2px);
+  }
+  .overlay.show{display:flex;}
+  .modal{background:var(--card);border-radius:14px;width:100%;max-width:560px;box-shadow:0 20px 60px rgba(0,0,0,.3);animation:pop .15s ease;}
+  .modal.wide{max-width:680px;}
+  @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.98);}to{opacity:1;transform:none;}}
+  .modal-head{padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .modal-head h2{font-size:16px;font-weight:900;}
+  .modal-close{cursor:pointer;width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:16px;}
+  .modal-close:hover{background:var(--gray-soft);}
+  .modal-body{padding:22px 24px;display:flex;flex-direction:column;gap:16px;max-height:70vh;overflow-y:auto;}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .field label{display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px;}
+  .field input, .field select, .field textarea{
+    width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;
+    font-family:var(--font-ui);font-size:13.5px;background:#fff;color:var(--text);
+  }
+  .field textarea{resize:vertical;min-height:64px;font-family:var(--font-ui);}
+  .field input:focus, .field select:focus, .field textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft);}
+  .field .req{color:var(--red);}
+  .modal-foot{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;}
+
+  .parts-picker-row{display:grid;grid-template-columns:1fr 90px 32px;gap:8px;align-items:center;margin-bottom:8px;}
+  .parts-picker-row select, .parts-picker-row input{padding:8px 10px;border:1px solid var(--border-strong);border-radius:7px;font-size:13px;font-family:var(--font-ui);}
+  .parts-picker-remove{width:32px;height:32px;border-radius:7px;border:1px solid var(--border-strong);background:#fff;color:var(--red);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  .parts-picker-remove:hover{background:var(--red-soft);}
+
+  /* ---------- Detail drawer ---------- */
+  .detail-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .detail-title{font-size:20px;font-weight:900;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .detail-title .mono{font-size:13px;color:var(--text-muted);font-weight:500;display:block;margin-top:3px;}
+  .detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px;}
+  .detail-item{background:var(--card);border:1px solid var(--border);border-radius:9px;padding:12px 14px;}
+  .detail-item .k{font-size:11px;color:var(--text-faint);font-weight:600;}
+  .detail-item .v{font-size:14.5px;font-weight:700;margin-top:4px;}
+  .section-title{font-size:13px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin:26px 0 10px 0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:#161c2b;color:#fff;padding:12px 20px;border-radius:9px;font-size:13px;font-weight:600;
+    opacity:0;pointer-events:none;transition:all .25s;z-index:200;display:flex;align-items:center;gap:8px;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  /* ---------- Reports ---------- */
+  .report-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;margin-bottom:18px;}
+  .report-card h3{font-size:13.5px;font-weight:800;margin-bottom:16px;}
+  .bar-chart{display:flex;align-items:flex-end;gap:14px;height:180px;padding-top:20px;}
+  .bar-chart .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+  .bar-chart .bar{width:100%;max-width:44px;border-radius:6px 6px 2px 2px;background:var(--blue);position:relative;transition:height .3s ease;min-height:2px;}
+  .bar-chart .bar .val{position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;font-family:var(--font-mono);white-space:nowrap;}
+  .bar-chart .col .lbl{margin-top:8px;font-size:11px;color:var(--text-muted);font-family:var(--font-mono);}
+  .stacked-bar{display:flex;width:100%;height:26px;border-radius:7px;overflow:hidden;background:var(--gray-soft);}
+  .stacked-bar .seg{height:100%;transition:width .3s ease;}
+  .legend{display:flex;gap:18px;margin-top:14px;flex-wrap:wrap;}
+  .legend .item{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-muted);}
+  .legend .sw{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
+  .report-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;}
+
+  .settings-section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:18px;}
+  .settings-section h3{font-size:14px;font-weight:800;margin-bottom:4px;}
+  .settings-section .desc{font-size:12px;color:var(--text-muted);margin-bottom:16px;}
+  .settings-actions{display:flex;gap:10px;flex-wrap:wrap;}
+
+  /* ---------- Mobile menu button + backdrop ---------- */
+  .mobile-menu-btn{
+    display:none;width:38px;height:38px;border-radius:8px;border:1px solid var(--border-strong);
+    background:var(--card);align-items:center;justify-content:center;color:var(--text);cursor:pointer;flex-shrink:0;
+  }
+  .mobile-menu-btn svg{width:19px;height:19px;}
+  .sidebar-backdrop{position:fixed;inset:0;background:rgba(11,18,32,.55);z-index:98;display:none;backdrop-filter:blur(1px);}
+  .sidebar-backdrop.show{display:block;}
+  .topbar-left{display:flex;align-items:center;gap:12px;min-width:0;}
+  .topbar-left h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  @media(max-width:900px){
+    .collapse-toggle{display:none;}
+    .mobile-menu-btn{display:flex;}
+    .sidebar{position:fixed;left:-260px;top:0;bottom:0;z-index:99;width:260px;min-width:260px;transition:left .2s ease;box-shadow:0 0 40px rgba(0,0,0,.3);}
+    .sidebar.mobile-open{left:0;}
+    .stat-grid{grid-template-columns:repeat(2,1fr);}
+    .form-row{grid-template-columns:1fr;}
+    .detail-grid{grid-template-columns:1fr 1fr;}
+    .report-grid{grid-template-columns:1fr;}
+    .topbar{padding:14px 16px;}
+    .content{padding:16px 16px 50px 16px;}
+    .overlay{padding:0;align-items:flex-end;}
+    .modal{max-width:100%;border-radius:16px 16px 0 0;max-height:92vh;display:flex;flex-direction:column;}
+    .modal-body{max-height:none;flex:1;}
+  }
+  @media(max-width:520px){
+    .stat-grid{grid-template-columns:1fr 1fr;gap:10px;}
+    .stat-card{padding:12px 14px;}
+    .stat-card .value{font-size:21px;}
+    .detail-grid{grid-template-columns:1fr;}
+    .topbar h1{font-size:16.5px;}
+    .btn{padding:9px 13px;font-size:12.5px;}
+  }
+  /* Prevent iOS auto-zoom on form focus + bigger touch targets on touch devices */
+  @media(max-width:900px){
+    .field input, .field select, .field textarea{font-size:16px;padding:11px 12px;}
+    .icon-btn{width:34px;height:34px;}
+    .nav-item{padding:12px 12px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="sidebar" id="sidebar">
+  <div class="collapse-toggle" id="collapseToggle" title="收合／展開選單">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M15 5l-7 7 7 7"/></svg>
+  </div>
+  <div class="brand">
+    <div class="brand-mark">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 17V7a1 1 0 011-1h5v11" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M9 17h7l3-5h-6" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="7" cy="19" r="1.6" fill="#fff"/><circle cx="16.5" cy="19" r="1.6" fill="#fff"/></svg>
+    </div>
+    <div class="brand-text">
+      <div class="t1">堆高機維修系統</div>
+      <div class="t2">FLEET · SERVICE · CARE</div>
+    </div>
+  </div>
+  <div class="nav" id="navList"></div>
+  <div class="sidebar-foot">v2.0 · 資料為團隊共用</div>
+</div>
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="mobile-menu-btn" id="mobileMenuBtn" title="選單">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </div>
+      <div>
+        <h1 id="pageTitle">Dashboard</h1>
+        <div class="sub" id="pageSub">車隊總覽與待辦保養提醒</div>
+      </div>
+    </div>
+    <div id="topbarActions" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+  </div>
+  <div class="content" id="content"></div>
+</div>
+
+<div class="overlay" id="overlay"><div class="modal" id="modalBox"></div></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="importFile" accept="application/json" style="display:none">
+
+<script>
+/* ============================= DATA LAYER ============================= */
+const STORAGE_KEY = 'forklift-service-data-v2';
+let DB = { machines:[], repairs:[], maintenance:[], parts:[], vendors:[], settings:{} };
+let currentView = 'dashboard';
+let currentDetailMachine = null;
+let sidebarCollapsed = false;
+
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const todayISO = () => new Date().toISOString().slice(0,10);
+const daysBetween = (a,b) => Math.round((new Date(b) - new Date(a)) / 86400000);
+
+async function loadData(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY, true);
+    if(res && res.value){ DB = JSON.parse(res.value); }
+  }catch(e){ /* first run */ }
+  DB.machines = DB.machines || [];
+  DB.repairs = DB.repairs || [];
+  DB.maintenance = DB.maintenance || [];
+  DB.parts = DB.parts || [];
+  DB.vendors = DB.vendors || [];
+  DB.settings = DB.settings || {};
+}
+async function saveData(){
+  try{ await window.storage.set(STORAGE_KEY, JSON.stringify(DB), true); }
+  catch(e){ showToast('儲存失敗，請檢查網路連線', true); }
+}
+
+/* ============================= HELPERS ============================= */
+function showToast(msg, isErr){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = isErr ? '#dd3d3d' : '#161c2b';
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+function getMachine(id){ return DB.machines.find(m=>m.id===id); }
+function getPart(id){ return DB.parts.find(p=>p.id===id); }
+function getVendor(id){ return DB.vendors.find(v=>v.id===id); }
+function esc(s){ return (s??'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function val(id){ return document.getElementById(id).value; }
+function money(n){ return n? 'NT$'+Number(n).toLocaleString() : '—'; }
+
+function statusBadge(status){
+  const map = {
+    '使用中':'green', '維修中':'amber', '停用':'gray',
+    '待處理':'amber', '處理中':'blue', '已完成':'green', '已取消':'gray'
+  };
+  return `<span class="badge ${map[status]||'gray'}"><span class="badge-dot" style="background:currentColor"></span>${esc(status)}</span>`;
+}
+
+/* maintenance cycle math */
+function addDays(dateStr, days){ const d = new Date(dateStr); d.setDate(d.getDate()+Number(days)); return d.toISOString().slice(0,10); }
+function nextDue(item){ return item.lastDate ? addDays(item.lastDate, item.cycleDays) : null; }
+function cycleStatus(item){
+  const next = nextDue(item);
+  if(!next) return {state:'gray', label:'未設定', daysLeft:null};
+  const daysLeft = daysBetween(todayISO(), next);
+  if(daysLeft < 0) return {state:'red', label:`逾期 ${Math.abs(daysLeft)} 天`, daysLeft};
+  if(daysLeft <= 14) return {state:'amber', label:`剩 ${daysLeft} 天`, daysLeft};
+  return {state:'green', label:`剩 ${daysLeft} 天`, daysLeft};
+}
+function cycleGauge(item){
+  const st = cycleStatus(item);
+  if(st.daysLeft===null) return `<div class="cycle-label">尚未設定保養日期</div>`;
+  const total = Number(item.cycleDays) || 1;
+  const elapsed = total - st.daysLeft;
+  let pct = Math.max(0, Math.min(1, elapsed/total));
+  const pctPix = Math.round(pct*120);
+  const forkSvg = `<svg viewBox="0 0 24 24" fill="none"><path d="M3 17V7a1 1 0 011-1h5v11" stroke="#0b1220" stroke-width="2.4" stroke-linecap="round"/><path d="M9 17h7l3-5h-6" stroke="#0b1220" stroke-width="2.4" stroke-linejoin="round"/></svg>`;
+  return `
+    <div class="cycle-track">
+      <div class="cycle-fill ${st.state}" style="width:${Math.max(6,pctPix)}px"></div>
+      <div class="cycle-marker" style="left:${Math.max(2,Math.min(118,pctPix))}px">${forkSvg}</div>
+    </div>
+    <div class="cycle-label">${st.label} · 下次 ${nextDue(item)}</div>
+  `;
+}
+
+/* parts stock adjustment: sign +1 restock, -1 consume */
+function adjustStock(partsUsedArr, sign){
+  (partsUsedArr||[]).forEach(pu=>{
+    const p = getPart(pu.partId);
+    if(p) p.stock = Math.max(0, Number(p.stock||0) + sign*Number(pu.qty||0));
+  });
+}
+
+/* ============================= ICONS ============================= */
+const ICONS = {
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>',
+  edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
+  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>',
+  eye:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
+  wrench:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a4 4 0 01-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 015.4-5.4L15 12l-3-3 2.7-2.7z"/></svg>',
+  clock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
+  truck:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17V7a1 1 0 011-1h5v11"/><path d="M9 17h7l3-5h-6"/><circle cx="7" cy="19" r="1.8"/><circle cx="16.5" cy="19" r="1.8"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>',
+  alert:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>',
+  back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>',
+  box:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>',
+  building:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 8h1M14 8h1M9 12h1M14 12h1M9 16h1M14 16h1"/></svg>',
+  chart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>',
+  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 112.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>',
+  download:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 19h16"/></svg>',
+  upload:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-4 4m4-4l4 4"/><path d="M4 5h16"/></svg>',
+};
+
+/* ============================= NAV DEFINITION ============================= */
+const NAV = [
+  {section:'總覽'},
+  {view:'dashboard', label:'Dashboard', icon:ICONS.chart},
+  {section:'車隊與維修'},
+  {view:'machines', label:'堆高機管理', icon:ICONS.truck},
+  {view:'repairs', label:'維修紀錄', icon:ICONS.wrench},
+  {view:'maintenance', label:'保養管理', icon:ICONS.clock, badgeFn: ()=>{
+      const n = DB.maintenance.filter(x=>cycleStatus(x).state==='red' || cycleStatus(x).state==='amber').length;
+      return n>0? n : null;
+    }},
+  {section:'資源管理'},
+  {view:'parts', label:'零件管理', icon:ICONS.box, badgeFn: ()=>{
+      const n = DB.parts.filter(p=>Number(p.stock) <= Number(p.minStock||0)).length;
+      return n>0? n : null;
+    }},
+  {view:'vendors', label:'維修廠商', icon:ICONS.building},
+  {section:'管理'},
+  {view:'reports', label:'統計報表', icon:ICONS.chart},
+  {view:'settings', label:'設定', icon:ICONS.gear},
+];
+function renderNav(){
+  const nav = document.getElementById('navList');
+  nav.innerHTML = NAV.map(item=>{
+    if(item.section) return `<div class="nav-section-label">${esc(item.section)}</div>`;
+    const badge = item.badgeFn ? item.badgeFn() : null;
+    return `<div class="nav-item ${currentView===item.view?'active':''}" data-view="${item.view}" data-label="${esc(item.label)}">
+      ${item.icon}<span class="label">${esc(item.label)}</span>
+      ${badge? `<span class="nav-badge">${badge}</span>` : ''}
+    </div>`;
+  }).join('');
+  nav.querySelectorAll('.nav-item').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      currentDetailMachine=null;
+      switchView(el.dataset.view);
+      if(window.innerWidth <= 900) closeMobileSidebar();
+    });
+  });
+}
+
+/* ---- Sidebar collapse (desktop) ---- */
+document.getElementById('collapseToggle').addEventListener('click', ()=>{
+  sidebarCollapsed = !sidebarCollapsed;
+  document.getElementById('sidebar').classList.toggle('collapsed', sidebarCollapsed);
+});
+
+/* ---- Sidebar mobile drawer ---- */
+const sidebarEl = document.getElementById('sidebar');
+const backdropEl = document.getElementById('sidebarBackdrop');
+function openMobileSidebar(){ sidebarEl.classList.add('mobile-open'); backdropEl.classList.add('show'); }
+function closeMobileSidebar(){ sidebarEl.classList.remove('mobile-open'); backdropEl.classList.remove('show'); }
+document.getElementById('mobileMenuBtn').addEventListener('click', ()=>{
+  sidebarEl.classList.contains('mobile-open') ? closeMobileSidebar() : openMobileSidebar();
+});
+backdropEl.addEventListener('click', closeMobileSidebar);
+window.addEventListener('resize', ()=>{ if(window.innerWidth > 900) closeMobileSidebar(); });
+
+/* ============================= VIEW SWITCH ============================= */
+const TITLES = {
+  dashboard:['Dashboard','車隊總覽與待辦保養提醒'],
+  machines:['堆高機管理','建立與管理客戶的堆高機資產資料'],
+  repairs:['維修紀錄','記錄每一次的故障與維修處理過程'],
+  maintenance:['保養管理','設定保養週期，掌握每台機台的下次保養日'],
+  parts:['零件管理','管理零件庫存、價格與供應商'],
+  vendors:['維修廠商','管理配合的零件供應商與外包廠商'],
+  reports:['統計報表','掌握維修成本、機台狀態與客戶趨勢'],
+  settings:['設定','公司資訊與資料管理'],
+};
+function switchView(view){
+  currentView = view;
+  renderNav();
+  document.getElementById('pageTitle').textContent = TITLES[view][0];
+  document.getElementById('pageSub').textContent = TITLES[view][1];
+  render();
+}
+function render(){
+  document.getElementById('topbarActions').innerHTML = '';
+  const fns = {
+    dashboard:renderDashboard, machines:renderMachines, repairs:renderRepairs,
+    maintenance:renderMaintenance, parts:renderParts, vendors:renderVendors,
+    reports:renderReports, settings:renderSettings,
+  };
+  (fns[currentView]||renderDashboard)();
+}
+function preserveFocus(id){ const el=document.getElementById(id); if(el){ el.focus(); const v=el.value; el.value=''; el.value=v; } }
+
+/* ============================= DASHBOARD ============================= */
+function renderDashboard(){
+  const c = document.getElementById('content');
+  const total = DB.machines.length;
+  const inUse = DB.machines.filter(m=>m.status==='使用中').length;
+  const inRepair = DB.machines.filter(m=>m.status==='維修中').length;
+  const openRepairs = DB.repairs.filter(r=>r.status!=='已完成' && r.status!=='已取消').length;
+
+  const dueList = DB.maintenance.map(item=>({item, st:cycleStatus(item)}))
+    .filter(x=>x.st.daysLeft!==null && x.st.daysLeft<=14)
+    .sort((a,b)=>a.st.daysLeft-b.st.daysLeft);
+
+  const recentRepairs = [...DB.repairs].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,6);
+  const lowStock = DB.parts.filter(p=>Number(p.stock) <= Number(p.minStock||0));
+
+  c.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat-card blue"><div class="bar"></div><div class="label">機台總數</div><div class="value">${total}</div></div>
+      <div class="stat-card green"><div class="bar"></div><div class="label">使用中</div><div class="value">${inUse}</div></div>
+      <div class="stat-card amber"><div class="bar"></div><div class="label">維修中</div><div class="value">${inRepair}</div></div>
+      <div class="stat-card red"><div class="bar"></div><div class="label">待處理維修單</div><div class="value">${openRepairs}</div></div>
+    </div>
+
+    <div class="section-title"><span>即將到期 / 逾期保養（14 天內）</span><span class="badge ${dueList.length?'red':'green'}">${dueList.length} 台</span></div>
+    <div class="card">
+      ${dueList.length ? `
+      <table><thead><tr><th>機台</th><th>客戶</th><th>保養類型</th><th>週期</th><th style="width:180px">狀態</th><th></th></tr></thead>
+      <tbody>${dueList.map(({item})=>{
+        const m = getMachine(item.machineId);
+        return `<tr>
+          <td class="cell-strong mono">${esc(m?m.assetNo:'—')}<div class="cell-sub">${esc(m?m.brand+' '+m.model:'')}</div></td>
+          <td>${esc(m?m.customer:'—')}</td><td>${esc(item.type)}</td><td class="mono">${item.cycleDays} 天</td>
+          <td>${cycleGauge(item)}</td>
+          <td><div class="row-actions"><button class="icon-btn" title="查看機台" onclick="openMachineDetail('${item.machineId}')">${ICONS.eye}</button></div></td>
+        </tr>`;
+      }).join('')}</tbody></table>` : `<div class="empty">${ICONS.check}<div class="msg">目前沒有即將到期的保養項目</div><div class="hint">所有機台的保養排程都在安全範圍內</div></div>`}
+    </div>
+
+    <div class="report-grid" style="margin-top:26px">
+      <div>
+        <div class="section-title" style="margin-top:0"><span>最新維修紀錄</span></div>
+        <div class="card">
+          ${recentRepairs.length ? `
+          <table><thead><tr><th>日期</th><th>機台</th><th>客戶</th><th>問題描述</th><th>狀態</th></tr></thead>
+          <tbody>${recentRepairs.map(r=>{
+            const m = getMachine(r.machineId);
+            return `<tr><td class="mono">${esc(r.date)}</td><td class="cell-strong">${esc(m?m.assetNo:'—')}</td><td>${esc(m?m.customer:'—')}</td><td>${esc(r.issue)}</td><td>${statusBadge(r.status)}</td></tr>`;
+          }).join('')}</tbody></table>` : `<div class="empty">${ICONS.wrench}<div class="msg">還沒有維修紀錄</div></div>`}
+        </div>
+      </div>
+      <div>
+        <div class="section-title" style="margin-top:0"><span>零件低庫存警示</span></div>
+        <div class="card">
+          ${lowStock.length ? `
+          <table><thead><tr><th>零件</th><th>庫存</th></tr></thead>
+          <tbody>${lowStock.map(p=>`<tr><td class="cell-strong">${esc(p.name)}<div class="cell-sub">${esc(p.partNo||'')}</div></td><td><span class="badge red">${p.stock} ${esc(p.unit||'')}</span></td></tr>`).join('')}</tbody></table>
+          ` : `<div class="empty">${ICONS.box}<div class="msg">零件庫存充足</div></div>`}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ============================= MACHINES ============================= */
+let machineFilters = { q:'', status:'', power:'' };
+function renderMachines(){
+  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" onclick="openMachineForm()">${ICONS.plus}新增堆高機</button>`;
+  const c = document.getElementById('content');
+  let list = DB.machines.filter(m=>{
+    const q = machineFilters.q.trim().toLowerCase();
+    const matchQ = !q || [m.assetNo,m.plate,m.brand,m.model,m.customer].join(' ').toLowerCase().includes(q);
+    const matchStatus = !machineFilters.status || m.status===machineFilters.status;
+    const matchPower = !machineFilters.power || m.powerType===machineFilters.power;
+    return matchQ && matchStatus && matchPower;
+  });
+  c.innerHTML = `
+    <div class="toolbar">
+      <div class="search-box">${ICONS.search}<input id="mSearch" placeholder="搜尋資產編號 / 車牌 / 廠牌 / 型號 / 客戶" value="${esc(machineFilters.q)}"></div>
+      <select class="filter" id="mStatusFilter">
+        <option value="">所有狀態</option>
+        <option ${machineFilters.status==='使用中'?'selected':''}>使用中</option>
+        <option ${machineFilters.status==='維修中'?'selected':''}>維修中</option>
+        <option ${machineFilters.status==='停用'?'selected':''}>停用</option>
+      </select>
+      <select class="filter" id="mPowerFilter">
+        <option value="">所有動力類型</option>
+        <option ${machineFilters.power==='電動'?'selected':''}>電動</option>
+        <option ${machineFilters.power==='柴油'?'selected':''}>柴油</option>
+        <option ${machineFilters.power==='汽油'?'selected':''}>汽油</option>
+        <option ${machineFilters.power==='其他'?'selected':''}>其他</option>
+      </select>
+    </div>
+    <div class="card">
+      ${list.length ? `
+      <table><thead><tr><th>資產編號</th><th>客戶</th><th>車牌</th><th>廠牌 / 型號</th><th>動力類型</th><th>狀態</th><th style="width:96px"></th></tr></thead>
+      <tbody>${list.map(m=>`
+        <tr>
+          <td class="mono cell-strong">${esc(m.assetNo)}</td>
+          <td>${esc(m.customer)}</td>
+          <td class="mono">${esc(m.plate||'—')}</td>
+          <td>${esc(m.brand)} <span style="color:var(--text-faint)">${esc(m.model)}</span></td>
+          <td><span class="power-tag ${esc(m.powerType)}">${esc(m.powerType)}</span></td>
+          <td>${statusBadge(m.status)}</td>
+          <td><div class="row-actions">
+            <button class="icon-btn" title="查看" onclick="openMachineDetail('${m.id}')">${ICONS.eye}</button>
+            <button class="icon-btn" title="編輯" onclick="openMachineForm('${m.id}')">${ICONS.edit}</button>
+            <button class="icon-btn" title="刪除" onclick="deleteMachine('${m.id}')">${ICONS.trash}</button>
+          </div></td>
+        </tr>`).join('')}</tbody></table>` : `<div class="empty">${ICONS.truck}<div class="msg">找不到符合條件的堆高機</div><div class="hint">試試調整搜尋條件，或新增一台堆高機</div></div>`}
+    </div>
+  `;
+  document.getElementById('mSearch').oninput = e=>{ machineFilters.q=e.target.value; renderMachines(); preserveFocus('mSearch'); };
+  document.getElementById('mStatusFilter').onchange = e=>{ machineFilters.status=e.target.value; renderMachines(); };
+  document.getElementById('mPowerFilter').onchange = e=>{ machineFilters.power=e.target.value; renderMachines(); };
+}
+function openMachineForm(id){
+  const m = id ? getMachine(id) : null;
+  document.getElementById('modalBox').innerHTML = `
+    <div class="modal-head"><h2>${m?'編輯堆高機':'新增堆高機'}</h2><div class="modal-close" onclick="closeModal()">✕</div></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="field"><label>資產編號 <span class="req">*</span></label><input id="f_assetNo" value="${esc(m?.assetNo||'')}" placeholder="例如 FL-0231"></div>
+        <div class="field"><label>客戶名稱 <span class="req">*</span></label><input id="f_customer" value="${esc(m?.customer||'')}" placeholder="例如 大成物流"></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>車牌號碼</label><input id="f_plate" value="${esc(m?.plate||'')}" placeholder="選填"></div>
+        <div class="field"><label>動力類型</label><select id="f_powerType">${['電動','柴油','汽油','其他'].map(p=>`<option ${m?.powerType===p?'selected':''}>${p}</option>`).join('')}</select></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>廠牌</label><input id="f_brand" value="${esc(m?.brand||'')}" placeholder="例如 TOYOTA"></div>
+        <div class="field"><label>型號</label><input id="f_model" value="${esc(m?.model||'')}" placeholder="例如 8FD30"></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>噸位 / 承重</label><input id="f_capacity" value="${esc(m?.capacity||'')}" placeholder="例如 3.0 噸"></div>
+        <div class="field"><label>狀態</label><select id="f_status">${['使用中','維修中','停用'].map(s=>`<option ${m?.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      </div>
+      <div class="field"><label>備註</label><textarea id="f_notes" placeholder="其他補充資訊">${esc(m?.notes||'')}</textarea></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveMachine('${id||''}')">${ICONS.check}儲存</button></div>
+  `;
+  openModal();
+}
+async function saveMachine(id){
+  const assetNo = val('f_assetNo').trim(), customer = val('f_customer').trim();
+  if(!assetNo || !customer){ showToast('請填寫資產編號與客戶名稱', true); return; }
+  const data = { assetNo, customer, plate:val('f_plate').trim(), powerType:val('f_powerType'), brand:val('f_brand').trim(),
+    model:val('f_model').trim(), capacity:val('f_capacity').trim(), status:val('f_status'), notes:val('f_notes').trim() };
+  if(id){ Object.assign(getMachine(id), data); showToast('已更新堆高機資料'); }
+  else{ data.id=uid(); data.createdAt=todayISO(); DB.machines.unshift(data); showToast('已新增堆高機'); }
+  await saveData(); closeModal(); render();
+}
+async function deleteMachine(id){
+  if(!confirm('確定要刪除這台堆高機嗎？相關的維修紀錄與保養排程也會一併移除。')) return;
+  DB.machines = DB.machines.filter(m=>m.id!==id);
+  DB.repairs = DB.repairs.filter(r=>r.machineId!==id);
+  DB.maintenance = DB.maintenance.filter(x=>x.machineId!==id);
+  await saveData(); showToast('已刪除'); render();
+}
+
+/* ---- Machine detail ---- */
+function openMachineDetail(id){
+  currentDetailMachine = id; currentView = 'machine-detail';
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('pageTitle').textContent = '機台詳細資料';
+  document.getElementById('pageSub').textContent = '維修歷史與保養排程';
+  renderMachineDetail();
+}
+function renderMachineDetail(){
+  const m = getMachine(currentDetailMachine);
+  const actions = document.getElementById('topbarActions');
+  const c = document.getElementById('content');
+  if(!m){ actions.innerHTML=''; c.innerHTML = `<div class="empty">${ICONS.alert}<div class="msg">找不到這台機台</div></div>`; return; }
+  actions.innerHTML = `<button class="btn btn-ghost" onclick="switchView('machines')">${ICONS.back}返回列表</button><button class="btn btn-primary" onclick="openMachineForm('${m.id}')">${ICONS.edit}編輯</button>`;
+
+  const repairs = DB.repairs.filter(r=>r.machineId===m.id).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const maint = DB.maintenance.filter(x=>x.machineId===m.id);
+
+  c.innerHTML = `
+    <div class="detail-header"><div class="detail-title">${esc(m.assetNo)} ${statusBadge(m.status)}<span class="mono">${esc(m.brand)} ${esc(m.model)} · ${esc(m.customer)}</span></div></div>
+    <div class="detail-grid">
+      <div class="detail-item"><div class="k">動力類型</div><div class="v"><span class="power-tag ${esc(m.powerType)}">${esc(m.powerType)}</span></div></div>
+      <div class="detail-item"><div class="k">車牌號碼</div><div class="v mono">${esc(m.plate||'—')}</div></div>
+      <div class="detail-item"><div class="k">噸位 / 承重</div><div class="v">${esc(m.capacity||'—')}</div></div>
+      <div class="detail-item"><div class="k">客戶名稱</div><div class="v">${esc(m.customer)}</div></div>
+      <div class="detail-item"><div class="k">建立日期</div><div class="v mono">${esc(m.createdAt||'—')}</div></div>
+      <div class="detail-item"><div class="k">備註</div><div class="v" style="font-weight:500">${esc(m.notes||'—')}</div></div>
+    </div>
+    <div class="section-title"><span>保養排程</span><button class="btn btn-primary btn-sm" onclick="openMaintenanceForm(null,'${m.id}')">${ICONS.plus}新增保養排程</button></div>
+    <div class="card" style="margin-bottom:8px">
+      ${maint.length ? `
+      <table><thead><tr><th>保養類型</th><th>週期</th><th>上次保養</th><th style="width:200px">下次保養狀態</th><th style="width:80px"></th></tr></thead>
+      <tbody>${maint.map(item=>`
+        <tr><td class="cell-strong">${esc(item.type)}</td><td class="mono">${item.cycleDays} 天</td><td class="mono">${esc(item.lastDate||'—')}</td><td>${cycleGauge(item)}</td>
+        <td><div class="row-actions"><button class="icon-btn" title="編輯" onclick="openMaintenanceForm('${item.id}')">${ICONS.edit}</button><button class="icon-btn" title="刪除" onclick="deleteMaintenance('${item.id}')">${ICONS.trash}</button></div></td></tr>`).join('')}
+      </tbody></table>` : `<div class="empty" style="padding:34px"><div class="msg">尚未設定保養排程</div></div>`}
+    </div>
+    <div class="section-title"><span>維修紀錄</span><button class="btn btn-primary btn-sm" onclick="openRepairForm(null,'${m.id}')">${ICONS.plus}新增維修紀錄</button></div>
+    <div class="card">
+      ${repairs.length ? `
+      <table><thead><tr><th>日期</th><th>問題描述</th><th>使用零件</th><th>費用</th><th>狀態</th><th style="width:80px"></th></tr></thead>
+      <tbody>${repairs.map(r=>`
+        <tr><td class="mono">${esc(r.date)}</td><td>${esc(r.issue)}</td><td>${partsUsedSummary(r.partsUsed)}</td><td class="mono">${money(r.cost)}</td><td>${statusBadge(r.status)}</td>
+        <td><div class="row-actions"><button class="icon-btn" title="編輯" onclick="openRepairForm('${r.id}')">${ICONS.edit}</button><button class="icon-btn" title="刪除" onclick="deleteRepair('${r.id}')">${ICONS.trash}</button></div></td></tr>`).join('')}
+      </tbody></table>` : `<div class="empty" style="padding:34px"><div class="msg">尚無維修紀錄</div></div>`}
+    </div>
+  `;
+}
+function partsUsedSummary(arr){
+  if(!arr || !arr.length) return '—';
+  return arr.map(pu=>{ const p=getPart(pu.partId); return `${esc(p?p.name:'（已刪除）')} ×${pu.qty}`; }).join('、');
+}
+
+/* ============================= REPAIRS ============================= */
+let repairFilters = { q:'', status:'' };
+let currentRepairParts = [];
+function renderRepairs(){
+  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" onclick="openRepairForm()">${ICONS.plus}新增維修紀錄</button>`;
+  const c = document.getElementById('content');
+  let list = DB.repairs.filter(r=>{
+    const m = getMachine(r.machineId);
+    const q = repairFilters.q.trim().toLowerCase();
+    const hay = [m?.assetNo, m?.customer, r.issue, r.action, r.technician].join(' ').toLowerCase();
+    const matchQ = !q || hay.includes(q);
+    const matchStatus = !repairFilters.status || r.status===repairFilters.status;
+    return matchQ && matchStatus;
+  }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  c.innerHTML = `
+    <div class="toolbar">
+      <div class="search-box">${ICONS.search}<input id="rSearch" placeholder="搜尋資產編號 / 客戶 / 問題描述 / 技師" value="${esc(repairFilters.q)}"></div>
+      <select class="filter" id="rStatusFilter">
+        <option value="">所有狀態</option>
+        <option ${repairFilters.status==='待處理'?'selected':''}>待處理</option>
+        <option ${repairFilters.status==='處理中'?'selected':''}>處理中</option>
+        <option ${repairFilters.status==='已完成'?'selected':''}>已完成</option>
+        <option ${repairFilters.status==='已取消'?'selected':''}>已取消</option>
+      </select>
+    </div>
+    <div class="card">
+      ${list.length ? `
+      <table><thead><tr><th>日期</th><th>機台 / 客戶</th><th>問題描述</th><th>使用零件</th><th>費用</th><th>技師</th><th>狀態</th><th style="width:80px"></th></tr></thead>
+      <tbody>${list.map(r=>{
+        const m = getMachine(r.machineId);
+        return `<tr>
+          <td class="mono">${esc(r.date)}</td>
+          <td class="cell-strong">${esc(m?m.assetNo:'—')}<div class="cell-sub">${esc(m?m.customer:'')}</div></td>
+          <td>${esc(r.issue)}</td><td>${partsUsedSummary(r.partsUsed)}</td><td class="mono">${money(r.cost)}</td>
+          <td>${esc(r.technician||'—')}</td><td>${statusBadge(r.status)}</td>
+          <td><div class="row-actions"><button class="icon-btn" title="編輯" onclick="openRepairForm('${r.id}')">${ICONS.edit}</button><button class="icon-btn" title="刪除" onclick="deleteRepair('${r.id}')">${ICONS.trash}</button></div></td>
+        </tr>`;
+      }).join('')}</tbody></table>` : `<div class="empty">${ICONS.wrench}<div class="msg">找不到符合條件的維修紀錄</div><div class="hint">試試調整搜尋條件，或新增一筆維修紀錄</div></div>`}
+    </div>
+  `;
+  document.getElementById('rSearch').oninput = e=>{ repairFilters.q=e.target.value; renderRepairs(); preserveFocus('rSearch'); };
+  document.getElementById('rStatusFilter').onchange = e=>{ repairFilters.status=e.target.value; renderRepairs(); };
+}
+function machineOptions(selectedId){
+  if(!DB.machines.length) return `<option value="">請先建立堆高機資料</option>`;
+  return DB.machines.map(m=>`<option value="${m.id}" ${m.id===selectedId?'selected':''}>${esc(m.assetNo)} · ${esc(m.customer)} (${esc(m.brand)} ${esc(m.model)})</option>`).join('');
+}
+function partOptionsFor(selectedId){
+  if(!DB.parts.length) return `<option value="">尚無零件資料</option>`;
+  return `<option value="">選擇零件…</option>` + DB.parts.map(p=>`<option value="${p.id}" ${p.id===selectedId?'selected':''}>${esc(p.name)}（庫存 ${p.stock}）</option>`).join('');
+}
+function renderPartsPicker(){
+  const box = document.getElementById('partsPickerRows');
+  if(!box) return;
+  box.innerHTML = currentRepairParts.map((row,i)=>`
+    <div class="parts-picker-row">
+      <select onchange="currentRepairParts[${i}].partId=this.value">${partOptionsFor(row.partId)}</select>
+      <input type="number" min="1" value="${row.qty}" oninput="currentRepairParts[${i}].qty=this.value">
+      <div class="parts-picker-remove" onclick="currentRepairParts.splice(${i},1); renderPartsPicker();">✕</div>
+    </div>
+  `).join('') || `<div style="font-size:12.5px;color:var(--text-faint)">尚未加入零件，點下方按鈕新增</div>`;
+}
+function addPartRow(){ currentRepairParts.push({partId:'', qty:1}); renderPartsPicker(); }
+
+function openRepairForm(id, presetMachineId){
+  const r = id ? DB.repairs.find(x=>x.id===id) : null;
+  currentRepairParts = r && r.partsUsed ? JSON.parse(JSON.stringify(r.partsUsed)) : [];
+  document.getElementById('modalBox').outerHTML = `<div class="modal wide" id="modalBox">
+    <div class="modal-head"><h2>${r?'編輯維修紀錄':'新增維修紀錄'}</h2><div class="modal-close" onclick="closeModal()">✕</div></div>
+    <div class="modal-body">
+      <div class="field"><label>關聯機台 <span class="req">*</span></label><select id="f_machineId">${machineOptions(r?r.machineId:presetMachineId)}</select></div>
+      <div class="form-row">
+        <div class="field"><label>維修日期 <span class="req">*</span></label><input type="date" id="f_date" value="${r?.date||todayISO()}"></div>
+        <div class="field"><label>狀態</label><select id="f_status">${['待處理','處理中','已完成','已取消'].map(s=>`<option ${r?.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      </div>
+      <div class="field"><label>問題描述 <span class="req">*</span></label><textarea id="f_issue" placeholder="例如：油壓系統漏油、無法舉升">${esc(r?.issue||'')}</textarea></div>
+      <div class="field"><label>處理方式</label><textarea id="f_action" placeholder="例如：更換油封、清洗油路">${esc(r?.action||'')}</textarea></div>
+      <div class="field">
+        <label>使用零件（自動扣減庫存）</label>
+        <div id="partsPickerRows"></div>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="addPartRow()">${ICONS.plus}加入零件</button>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>費用 (NT$)</label><input type="number" id="f_cost" value="${r?.cost||''}" placeholder="0"></div>
+        <div class="field"><label>負責技師</label><input id="f_technician" value="${esc(r?.technician||'')}" placeholder="例如：陳師傅"></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveRepair('${id||''}')">${ICONS.check}儲存</button></div>
+  </div>`;
+  renderPartsPicker();
+  openModal();
+}
+async function saveRepair(id){
+  const machineId = val('f_machineId'), date = val('f_date'), issue = val('f_issue').trim();
+  if(!machineId){ showToast('請選擇關聯機台', true); return; }
+  if(!date || !issue){ showToast('請填寫維修日期與問題描述', true); return; }
+  const partsUsed = currentRepairParts.filter(p=>p.partId && Number(p.qty)>0).map(p=>({partId:p.partId, qty:Number(p.qty)}));
+  const data = { machineId, date, issue, action:val('f_action').trim(), partsUsed,
+    cost: val('f_cost') ? Number(val('f_cost')) : null, technician: val('f_technician').trim(), status: val('f_status') };
+  if(id){
+    const old = DB.repairs.find(x=>x.id===id);
+    adjustStock(old.partsUsed, +1);
+    Object.assign(old, data);
+    adjustStock(old.partsUsed, -1);
+    showToast('已更新維修紀錄');
+  }else{
+    data.id = uid(); DB.repairs.unshift(data); adjustStock(data.partsUsed, -1);
+    showToast('已新增維修紀錄');
+    const m = getMachine(machineId);
+    if(m && data.status!=='已完成' && data.status!=='已取消') m.status='維修中';
+  }
+  await saveData(); closeModal();
+  currentView==='machine-detail' ? renderMachineDetail() : render();
+}
+async function deleteRepair(id){
+  if(!confirm('確定要刪除這筆維修紀錄嗎？已使用的零件庫存將會退回。')) return;
+  const r = DB.repairs.find(x=>x.id===id);
+  if(r) adjustStock(r.partsUsed, +1);
+  DB.repairs = DB.repairs.filter(r=>r.id!==id);
+  await saveData(); showToast('已刪除');
+  currentView==='machine-detail' ? renderMachineDetail() : render();
+}
+
+/* ============================= MAINTENANCE ============================= */
+function renderMaintenance(){
+  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" onclick="openMaintenanceForm()">${ICONS.plus}新增保養排程</button>`;
+  const c = document.getElementById('content');
+  const list = [...DB.maintenance].sort((a,b)=>{
+    const da=nextDue(a), db_=nextDue(b);
+    if(!da) return 1; if(!db_) return -1;
+    return da.localeCompare(db_);
+  });
+  const overdue = list.filter(x=>cycleStatus(x).state==='red').length;
+  const soon = list.filter(x=>cycleStatus(x).state==='amber').length;
+  c.innerHTML = `
+    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat-card blue"><div class="bar"></div><div class="label">保養排程總數</div><div class="value">${list.length}</div></div>
+      <div class="stat-card amber"><div class="bar"></div><div class="label">14 天內到期</div><div class="value">${soon}</div></div>
+      <div class="stat-card red"><div class="bar"></div><div class="label">已逾期</div><div class="value">${overdue}</div></div>
+    </div>
+    <div class="card">
+      ${list.length ? `
+      <table><thead><tr><th>機台 / 客戶</th><th>保養類型</th><th>週期</th><th>上次保養</th><th style="width:200px">下次保養狀態</th><th style="width:120px"></th></tr></thead>
+      <tbody>${list.map(item=>{
+        const m = getMachine(item.machineId);
+        return `<tr>
+          <td class="cell-strong">${esc(m?m.assetNo:'—')}<div class="cell-sub">${esc(m?m.customer:'')}</div></td>
+          <td>${esc(item.type)}</td><td class="mono">${item.cycleDays} 天</td><td class="mono">${esc(item.lastDate||'—')}</td>
+          <td>${cycleGauge(item)}</td>
+          <td><div class="row-actions">
+            <button class="icon-btn" title="標記今日已保養" onclick="markMaintained('${item.id}')">${ICONS.check}</button>
+            <button class="icon-btn" title="編輯" onclick="openMaintenanceForm('${item.id}')">${ICONS.edit}</button>
+            <button class="icon-btn" title="刪除" onclick="deleteMaintenance('${item.id}')">${ICONS.trash}</button>
+          </div></td>
+        </tr>`;
+      }).join('')}</tbody></table>` : `<div class="empty">${ICONS.clock}<div class="msg">尚未設定任何保養排程</div><div class="hint">為每台堆高機建立保養週期，系統會自動提醒到期日</div></div>`}
+    </div>
+  `;
+}
+function openMaintenanceForm(id, presetMachineId){
+  const item = id ? DB.maintenance.find(x=>x.id===id) : null;
+  document.getElementById('modalBox').innerHTML = `
+    <div class="modal-head"><h2>${item?'編輯保養排程':'新增保養排程'}</h2><div class="modal-close" onclick="closeModal()">✕</div></div>
+    <div class="modal-body">
+      <div class="field"><label>關聯機台 <span class="req">*</span></label><select id="f_machineId">${machineOptions(item?item.machineId:presetMachineId)}</select></div>
+      <div class="form-row">
+        <div class="field"><label>保養類型</label><select id="f_type">${['定期保養','季保養','年度大保養','其他'].map(t=>`<option ${item?.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+        <div class="field"><label>保養週期 (天) <span class="req">*</span></label><input type="number" id="f_cycleDays" value="${item?.cycleDays||90}" min="1"></div>
+      </div>
+      <div class="field"><label>上次保養日期 <span class="req">*</span></label><input type="date" id="f_lastDate" value="${item?.lastDate||todayISO()}"></div>
+      <div class="field"><label>備註</label><textarea id="f_notes" placeholder="保養內容、注意事項等">${esc(item?.notes||'')}</textarea></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveMaintenance('${id||''}')">${ICONS.check}儲存</button></div>
+  `;
+  openModal();
+}
+async function saveMaintenance(id){
+  const machineId = val('f_machineId'), lastDate = val('f_lastDate'), cycleDays = Number(val('f_cycleDays'));
+  if(!machineId){ showToast('請選擇關聯機台', true); return; }
+  if(!lastDate || !cycleDays){ showToast('請填寫上次保養日期與週期天數', true); return; }
+  const data = { machineId, lastDate, cycleDays, type: val('f_type'), notes: val('f_notes').trim() };
+  if(id){ Object.assign(DB.maintenance.find(x=>x.id===id), data); showToast('已更新保養排程'); }
+  else{ data.id=uid(); DB.maintenance.unshift(data); showToast('已新增保養排程'); }
+  await saveData(); closeModal();
+  currentView==='machine-detail' ? renderMachineDetail() : render();
+}
+async function markMaintained(id){
+  const item = DB.maintenance.find(x=>x.id===id);
+  if(!item) return;
+  item.lastDate = todayISO();
+  await saveData(); showToast('已標記為今日完成保養，下次到期日已更新'); render();
+}
+async function deleteMaintenance(id){
+  if(!confirm('確定要刪除這個保養排程嗎？')) return;
+  DB.maintenance = DB.maintenance.filter(x=>x.id!==id);
+  await saveData(); showToast('已刪除');
+  currentView==='machine-detail' ? renderMachineDetail() : render();
+}
+
+/* ============================= PARTS ============================= */
+let partsFilters = { q:'' };
+function renderParts(){
+  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" onclick="openPartForm()">${ICONS.plus}新增零件</button>`;
+  const c = document.getElementById('content');
+  const q = partsFilters.q.trim().toLowerCase();
+  const list = DB.parts.filter(p=> !q || [p.name,p.partNo,p.category].join(' ').toLowerCase().includes(q));
+  const totalValue = DB.parts.reduce((s,p)=>s + (Number(p.unitPrice)||0)*(Number(p.stock)||0), 0);
+  const lowCount = DB.parts.filter(p=>Number(p.stock)<=Number(p.minStock||0)).length;
+
+  c.innerHTML = `
+    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat-card blue"><div class="bar"></div><div class="label">零件品項數</div><div class="value">${DB.parts.length}</div></div>
+      <div class="stat-card red"><div class="bar"></div><div class="label">低庫存品項</div><div class="value">${lowCount}</div></div>
+      <div class="stat-card green"><div class="bar"></div><div class="label">庫存總值</div><div class="value" style="font-size:20px">${money(totalValue)}</div></div>
+    </div>
+    <div class="toolbar"><div class="search-box">${ICONS.search}<input id="pSearch" placeholder="搜尋零件名稱 / 料號 / 分類" value="${esc(partsFilters.q)}"></div></div>
+    <div class="card">
+      ${list.length ? `
+      <table><thead><tr><th>零件名稱</th><th>料號</th><th>分類</th><th>供應商</th><th>單價</th><th>庫存</th><th style="width:96px"></th></tr></thead>
+      <tbody>${list.map(p=>{
+        const low = Number(p.stock) <= Number(p.minStock||0);
+        const v = getVendor(p.vendorId);
+        return `<tr>
+          <td class="cell-strong">${esc(p.name)}</td><td class="mono">${esc(p.partNo||'—')}</td><td>${esc(p.category||'—')}</td>
+          <td>${esc(v?v.name:'—')}</td><td class="mono">${money(p.unitPrice)}</td>
+          <td>${low? `<span class="badge red">${p.stock} ${esc(p.unit||'')}（低庫存）</span>` : `<span class="badge gray">${p.stock} ${esc(p.unit||'')}</span>`}</td>
+          <td><div class="row-actions"><button class="icon-btn" title="編輯" onclick="openPartForm('${p.id}')">${ICONS.edit}</button><button class="icon-btn" title="刪除" onclick="deletePart('${p.id}')">${ICONS.trash}</button></div></td>
+        </tr>`;
+      }).join('')}</tbody></table>` : `<div class="empty">${ICONS.box}<div class="msg">找不到符合條件的零件</div><div class="hint">新增零件以開始管理庫存</div></div>`}
+    </div>
+  `;
+  document.getElementById('pSearch').oninput = e=>{ partsFilters.q=e.target.value; renderParts(); preserveFocus('pSearch'); };
+}
+function vendorOptions(selectedId){
+  return `<option value="">未指定</option>` + DB.vendors.map(v=>`<option value="${v.id}" ${v.id===selectedId?'selected':''}>${esc(v.name)}</option>`).join('');
+}
+function openPartForm(id){
+  const p = id ? getPart(id) : null;
+  document.getElementById('modalBox').innerHTML = `
+    <div class="modal-head"><h2>${p?'編輯零件':'新增零件'}</h2><div class="modal-close" onclick="closeModal()">✕</div></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="field"><label>零件名稱 <span class="req">*</span></label><input id="f_name" value="${esc(p?.name||'')}" placeholder="例如 油壓油封"></div>
+        <div class="field"><label>料號</label><input id="f_partNo" value="${esc(p?.partNo||'')}" placeholder="選填"></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>分類</label><input id="f_category" value="${esc(p?.category||'')}" placeholder="例如 油壓系統"></div>
+        <div class="field"><label>供應商</label><select id="f_vendorId">${vendorOptions(p?.vendorId)}</select></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>單價 (NT$)</label><input type="number" id="f_unitPrice" value="${p?.unitPrice||''}" placeholder="0"></div>
+        <div class="field"><label>單位</label><input id="f_unit" value="${esc(p?.unit||'個')}" placeholder="例如 個 / 組 / 公升"></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>目前庫存 <span class="req">*</span></label><input type="number" id="f_stock" value="${p?.stock??0}" min="0"></div>
+        <div class="field"><label>低庫存警戒值</label><input type="number" id="f_minStock" value="${p?.minStock??2}" min="0"></div>
+      </div>
+      <div class="field"><label>備註</label><textarea id="f_notes">${esc(p?.notes||'')}</textarea></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="savePart('${id||''}')">${ICONS.check}儲存</button></div>
+  `;
+  openModal();
+}
+async function savePart(id){
+  const name = val('f_name').trim();
+  if(!name){ showToast('請填寫零件名稱', true); return; }
+  const data = { name, partNo:val('f_partNo').trim(), category:val('f_category').trim(), vendorId:val('f_vendorId')||null,
+    unitPrice: val('f_unitPrice')?Number(val('f_unitPrice')):0, unit:val('f_unit').trim(),
+    stock: Number(val('f_stock'))||0, minStock: Number(val('f_minStock'))||0, notes:val('f_notes').trim() };
+  if(id){ Object.assign(getPart(id), data); showToast('已更新零件資料'); }
+  else{ data.id=uid(); DB.parts.unshift(data); showToast('已新增零件'); }
+  await saveData(); closeModal(); render();
+}
+async function deletePart(id){
+  if(!confirm('確定要刪除這個零件嗎？')) return;
+  DB.parts = DB.parts.filter(p=>p.id!==id);
+  await saveData(); showToast('已刪除'); render();
+}
+
+/* ============================= VENDORS ============================= */
+let vendorFilters = { q:'' };
+function renderVendors(){
+  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" onclick="openVendorForm()">${ICONS.plus}新增廠商</button>`;
+  const c = document.getElementById('content');
+  const q = vendorFilters.q.trim().toLowerCase();
+  const list = DB.vendors.filter(v=> !q || [v.name,v.contact,v.phone].join(' ').toLowerCase().includes(q));
+  c.innerHTML = `
+    <div class="toolbar"><div class="search-box">${ICONS.search}<input id="vSearch" placeholder="搜尋廠商名稱 / 聯絡人 / 電話" value="${esc(vendorFilters.q)}"></div></div>
+    <div class="card">
+      ${list.length ? `
+      <table><thead><tr><th>廠商名稱</th><th>類型</th><th>聯絡人</th><th>電話</th><th>地址</th><th style="width:96px"></th></tr></thead>
+      <tbody>${list.map(v=>`
+        <tr><td class="cell-strong">${esc(v.name)}</td><td><span class="badge purple">${esc(v.category||'—')}</span></td>
+        <td>${esc(v.contact||'—')}</td><td class="mono">${esc(v.phone||'—')}</td><td>${esc(v.address||'—')}</td>
+        <td><div class="row-actions"><button class="icon-btn" title="編輯" onclick="openVendorForm('${v.id}')">${ICONS.edit}</button><button class="icon-btn" title="刪除" onclick="deleteVendor('${v.id}')">${ICONS.trash}</button></div></td></tr>`).join('')}
+      </tbody></table>` : `<div class="empty">${ICONS.building}<div class="msg">尚未建立任何廠商資料</div><div class="hint">新增零件供應商或外包維修廠商</div></div>`}
+    </div>
+  `;
+  document.getElementById('vSearch').oninput = e=>{ vendorFilters.q=e.target.value; renderVendors(); preserveFocus('vSearch'); };
+}
+function openVendorForm(id){
+  const v = id ? getVendor(id) : null;
+  document.getElementById('modalBox').innerHTML = `
+    <div class="modal-head"><h2>${v?'編輯廠商':'新增廠商'}</h2><div class="modal-close" onclick="closeModal()">✕</div></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="field"><label>廠商名稱 <span class="req">*</span></label><input id="f_name" value="${esc(v?.name||'')}" placeholder="例如 永盛零件行"></div>
+        <div class="field"><label>類型</label><select id="f_category">${['零件供應商','外包維修廠','其他'].map(t=>`<option ${v?.category===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>聯絡人</label><input id="f_contact" value="${esc(v?.contact||'')}"></div>
+        <div class="field"><label>電話</label><input id="f_phone" value="${esc(v?.phone||'')}"></div>
+      </div>
+      <div class="field"><label>Email</label><input id="f_email" value="${esc(v?.email||'')}"></div>
+      <div class="field"><label>地址</label><input id="f_address" value="${esc(v?.address||'')}"></div>
+      <div class="field"><label>備註</label><textarea id="f_notes">${esc(v?.notes||'')}</textarea></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveVendor('${id||''}')">${ICONS.check}儲存</button></div>
+  `;
+  openModal();
+}
+async function saveVendor(id){
+  const name = val('f_name').trim();
+  if(!name){ showToast('請填寫廠商名稱', true); return; }
+  const data = { name, category:val('f_category'), contact:val('f_contact').trim(), phone:val('f_phone').trim(),
+    email:val('f_email').trim(), address:val('f_address').trim(), notes:val('f_notes').trim() };
+  if(id){ Object.assign(getVendor(id), data); showToast('已更新廠商資料'); }
+  else{ data.id=uid(); DB.vendors.unshift(data); showToast('已新增廠商'); }
+  await saveData(); closeModal(); render();
+}
+async function deleteVendor(id){
+  if(!confirm('確定要刪除這個廠商嗎？')) return;
+  DB.vendors = DB.vendors.filter(v=>v.id!==id);
+  DB.parts.forEach(p=>{ if(p.vendorId===id) p.vendorId=null; });
+  await saveData(); showToast('已刪除'); render();
+}
+
+/* ============================= REPORTS ============================= */
+function monthKey(dateStr){ return (dateStr||'').slice(0,7); }
+function last6Months(){
+  const arr = [];
+  const d = new Date();
+  d.setDate(1);
+  for(let i=5;i>=0;i--){
+    const dd = new Date(d.getFullYear(), d.getMonth()-i, 1);
+    arr.push(dd.toISOString().slice(0,7));
+  }
+  return arr;
+}
+function renderReports(){
+  document.getElementById('topbarActions').innerHTML = '';
+  const c = document.getElementById('content');
+  const months = last6Months();
+  const countByMonth = months.map(mk => DB.repairs.filter(r=>monthKey(r.date)===mk).length);
+  const costByMonth = months.map(mk => DB.repairs.filter(r=>monthKey(r.date)===mk).reduce((s,r)=>s+(Number(r.cost)||0),0));
+  const maxCount = Math.max(1, ...countByMonth);
+  const maxCost = Math.max(1, ...costByMonth);
+
+  const statusCounts = {'使用中':0,'維修中':0,'停用':0};
+  DB.machines.forEach(m=>{ if(statusCounts[m.status]!==undefined) statusCounts[m.status]++; });
+  const totalM = Math.max(1, DB.machines.length);
+  const statusColors = {'使用中':'var(--green)','維修中':'var(--amber)','停用':'var(--gray)'};
+
+  const powerCounts = {};
+  DB.machines.forEach(m=>{ powerCounts[m.powerType] = (powerCounts[m.powerType]||0)+1; });
+
+  const custMap = {};
+  DB.repairs.forEach(r=>{
+    const m = getMachine(r.machineId);
+    if(!m) return;
+    custMap[m.customer] = custMap[m.customer] || {count:0, cost:0};
+    custMap[m.customer].count++;
+    custMap[m.customer].cost += Number(r.cost)||0;
+  });
+  const topCustomers = Object.entries(custMap).sort((a,b)=>b[1].count-a[1].count).slice(0,5);
+
+  c.innerHTML = `
+    <div class="report-grid">
+      <div class="report-card">
+        <h3>近 6 個月維修件數</h3>
+        <div class="bar-chart">
+          ${months.map((mk,i)=>`
+            <div class="col">
+              <div class="bar" style="height:${Math.round(countByMonth[i]/maxCount*130)||2}px;background:var(--blue)">
+                ${countByMonth[i]>0?`<span class="val">${countByMonth[i]}</span>`:''}
+              </div>
+              <div class="lbl">${mk.slice(5)}月</div>
+            </div>`).join('')}
+        </div>
+      </div>
+      <div class="report-card">
+        <h3>機台狀態分佈</h3>
+        <div class="stacked-bar">
+          ${Object.entries(statusCounts).map(([k,v])=>v>0?`<div class="seg" style="width:${v/totalM*100}%;background:${statusColors[k]}"></div>`:'').join('')}
+        </div>
+        <div class="legend">
+          ${Object.entries(statusCounts).map(([k,v])=>`<div class="item"><span class="sw" style="background:${statusColors[k]}"></span>${k} ${v} 台</div>`).join('')}
+        </div>
+        <h3 style="margin-top:24px">動力類型分佈</h3>
+        <div class="legend" style="margin-top:0">
+          ${Object.entries(powerCounts).map(([k,v])=>`<div class="item"><span class="power-tag ${esc(k)}">${esc(k)}</span> ${v} 台</div>`).join('') || '<div class="item">尚無機台資料</div>'}
+        </div>
+      </div>
+    </div>
+
+    <div class="report-card">
+      <h3>近 6 個月維修費用 (NT$)</h3>
+      <div class="bar-chart">
+        ${months.map((mk,i)=>`
+          <div class="col">
+            <div class="bar" style="height:${Math.round(costByMonth[i]/maxCost*130)||2}px;background:var(--purple)">
+              ${costByMonth[i]>0?`<span class="val">${costByMonth[i].toLocaleString()}</span>`:''}
+            </div>
+            <div class="lbl">${mk.slice(5)}月</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="section-title"><span>維修次數最高的客戶</span></div>
+    <div class="card">
+      ${topCustomers.length ? `
+      <table><thead><tr><th>客戶</th><th>維修次數</th><th>累計費用</th></tr></thead>
+      <tbody>${topCustomers.map(([name,d])=>`<tr><td class="cell-strong">${esc(name)}</td><td class="mono">${d.count}</td><td class="mono">${money(d.cost)}</td></tr>`).join('')}</tbody></table>
+      ` : `<div class="empty">${ICONS.chart}<div class="msg">尚無足夠資料</div></div>`}
+    </div>
+  `;
+}
+
+/* ============================= SETTINGS ============================= */
+function renderSettings(){
+  document.getElementById('topbarActions').innerHTML = '';
+  const s = DB.settings || {};
+  const c = document.getElementById('content');
+  c.innerHTML = `
+    <div class="settings-section">
+      <h3>公司資訊</h3>
+      <div class="desc">這些資訊會作為系統內部參考，供團隊成員辨識目前使用的帳戶／據點。</div>
+      <div class="form-row">
+        <div class="field"><label>公司名稱</label><input id="s_companyName" value="${esc(s.companyName||'')}" placeholder="例如 永昌堆高機維修有限公司"></div>
+        <div class="field"><label>聯絡電話</label><input id="s_phone" value="${esc(s.phone||'')}" placeholder="例如 02-1234-5678"></div>
+      </div>
+      <div class="field" style="margin-top:14px"><label>地址</label><input id="s_address" value="${esc(s.address||'')}" placeholder="公司地址"></div>
+      <div style="margin-top:16px"><button class="btn btn-primary" onclick="saveSettings()">${ICONS.check}儲存公司資訊</button></div>
+    </div>
+
+    <div class="settings-section">
+      <h3>資料管理</h3>
+      <div class="desc">目前資料為團隊共用儲存，所有成員開啟此系統時看到的都是同一份資料。您可以匯出備份，或匯入先前的備份檔。</div>
+      <div class="settings-actions">
+        <button class="btn btn-ghost" onclick="exportData()">${ICONS.download}匯出備份 (JSON)</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('importFile').click()">${ICONS.upload}匯入備份</button>
+        <button class="btn btn-danger" onclick="resetAllData()">${ICONS.trash}清空所有資料</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>資料概況</h3>
+      <div class="detail-grid" style="margin-bottom:0">
+        <div class="detail-item"><div class="k">堆高機</div><div class="v">${DB.machines.length} 台</div></div>
+        <div class="detail-item"><div class="k">維修紀錄</div><div class="v">${DB.repairs.length} 筆</div></div>
+        <div class="detail-item"><div class="k">保養排程</div><div class="v">${DB.maintenance.length} 筆</div></div>
+        <div class="detail-item"><div class="k">零件品項</div><div class="v">${DB.parts.length} 項</div></div>
+        <div class="detail-item"><div class="k">合作廠商</div><div class="v">${DB.vendors.length} 家</div></div>
+      </div>
+    </div>
+  `;
+}
+async function saveSettings(){
+  DB.settings = { companyName: val('s_companyName').trim(), phone: val('s_phone').trim(), address: val('s_address').trim() };
+  await saveData();
+  showToast('已儲存公司資訊');
+}
+function exportData(){
+  const blob = new Blob([JSON.stringify(DB, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `forklift-backup-${todayISO()}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('已匯出備份檔');
+}
+document.getElementById('importFile').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async function(evt){
+    try{
+      const parsed = JSON.parse(evt.target.result);
+      if(!confirm('匯入將會覆蓋目前所有資料，確定要繼續嗎？')) return;
+      DB = { machines:parsed.machines||[], repairs:parsed.repairs||[], maintenance:parsed.maintenance||[],
+             parts:parsed.parts||[], vendors:parsed.vendors||[], settings:parsed.settings||{} };
+      await saveData();
+      showToast('已匯入備份資料');
+      render();
+    }catch(err){ showToast('檔案格式錯誤，匯入失敗', true); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+async function resetAllData(){
+  if(!confirm('這將永久清空所有堆高機、維修、保養、零件與廠商資料，且無法復原，確定要繼續嗎？')) return;
+  DB = { machines:[], repairs:[], maintenance:[], parts:[], vendors:[], settings:DB.settings||{} };
+  await saveData();
+  showToast('已清空所有資料');
+  render();
+}
+
+/* ============================= MODAL ============================= */
+function openModal(){ document.getElementById('overlay').classList.add('show'); }
+function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
+document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
+
+/* ============================= INIT ============================= */
+(async function init(){
+  await loadData();
+  renderNav();
+  render();
+})();
+</script>
+</body>
+</html>
