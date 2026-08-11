@@ -568,6 +568,8 @@ function renderNav(){
     el.addEventListener('click', ()=>{
       currentDetailMachine=null;
       currentDetailCustomer=null;
+      currentRepairsCustomer=null;
+      currentRepairsMachine=null;
       switchView(el.dataset.view);
       if(window.innerWidth <= 900) closeMobileSidebar();
     });
@@ -595,7 +597,7 @@ window.addEventListener('resize', ()=>{ if(window.innerWidth > 900) closeMobileS
 const TITLES = {
   dashboard:['Dashboard','車隊總覽與待辦保養提醒'],
   machines:['堆高機管理','建立與管理客戶的堆高機資產資料'],
-  repairs:['維修紀錄','記錄每一次的故障與維修處理過程'],
+  repairs:['維修紀錄','選擇客戶查看機台，再查看或新增維修紀錄'],
   maintenance:['保養管理','設定保養週期，掌握每台機台的下次保養日'],
   brands:['廠牌管理','管理堆高機廠牌清單，新增堆高機時可直接下拉選擇'],
   parts:['零件管理','管理零件庫存、價格與供應商'],
@@ -687,19 +689,23 @@ function renderDashboard(){
 let machineFilters = { q:'' };
 let currentDetailCustomer = null;
 
-function renderMachines(){
-  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" onclick="openMachineForm()">${ICONS.plus}新增堆高機</button>`;
-  const c = document.getElementById('content');
-  const q = machineFilters.q.trim().toLowerCase();
-
+function groupMachinesByCustomer(query){
+  const q = (query||'').trim().toLowerCase();
   const groups = {};
   DB.machines.forEach(m=>{
     const key = (m.customer||'').trim() || '（未填寫客戶）';
     (groups[key] = groups[key] || []).push(m);
   });
-  const customers = Object.keys(groups)
+  const names = Object.keys(groups)
     .filter(name => !q || name.toLowerCase().includes(q))
     .sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+  return { groups, names };
+}
+
+function renderMachines(){
+  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" onclick="openMachineForm()">${ICONS.plus}新增堆高機</button>`;
+  const c = document.getElementById('content');
+  const { groups, names: customers } = groupMachinesByCustomer(machineFilters.q);
 
   c.innerHTML = `
     <div class="toolbar">
@@ -707,14 +713,12 @@ function renderMachines(){
     </div>
     <div class="card">
       ${customers.length ? `
-      <table><thead><tr><th>客戶名稱</th><th>機台數量</th><th>維修中</th><th style="width:96px"></th></tr></thead>
+      <table><thead><tr><th>客戶名稱</th><th>機台數量</th><th style="width:96px"></th></tr></thead>
       <tbody>${customers.map(name=>{
         const list = groups[name];
-        const inRepair = list.filter(m=>machineDerivedStatus(m.id)==='維修中').length;
         return `<tr class="customer-row" data-customer="${esc(name)}" style="cursor:pointer">
           <td class="cell-strong">${esc(name)}</td>
           <td class="mono">${list.length} 台</td>
-          <td>${inRepair>0? `<span class="badge amber">${inRepair} 台</span>` : `<span class="badge green">0</span>`}</td>
           <td><div class="row-actions"><button class="icon-btn view-customer-btn" data-customer="${esc(name)}" title="查看車輛">${ICONS.eye}</button></div></td>
         </tr>`;
       }).join('')}</tbody></table>` : `<div class="empty">${ICONS.truck}<div class="msg">找不到符合條件的客戶</div><div class="hint">試試調整搜尋條件，或新增一台堆高機</div></div>`}
@@ -750,15 +754,13 @@ function renderCustomerDetail(){
   c.innerHTML = `
     <div class="card">
       ${list.length ? `
-      <table><thead><tr><th>機號</th><th>交車日期</th><th>廠牌 / 型號</th><th>引擎號碼</th><th>動力類型</th><th>狀態</th><th style="width:96px"></th></tr></thead>
+      <table><thead><tr><th>機號</th><th>交車日期</th><th>廠牌 / 型號</th><th>引擎號碼</th><th style="width:96px"></th></tr></thead>
       <tbody>${list.map(m=>`
         <tr>
           <td class="mono cell-strong">${esc(m.machineNo||'—')}</td>
           <td class="mono">${esc(m.deliveryDate||'—')}</td>
           <td>${esc(m.brand)} <span style="color:var(--text-faint)">${esc(m.model)}</span></td>
           <td class="mono">${esc(m.engineNo||'—')}</td>
-          <td><span class="power-tag ${esc(m.powerType)}">${esc(m.powerType)}</span></td>
-          <td>${statusBadge(machineDerivedStatus(m.id))}</td>
           <td><div class="row-actions">
             <button class="icon-btn" title="查看" onclick="openMachineDetail('${m.id}')">${ICONS.eye}</button>
             <button class="icon-btn" title="編輯" onclick="openMachineForm('${m.id}')">${ICONS.edit}</button>
@@ -846,9 +848,8 @@ function renderMachineDetail(){
   const maint = DB.maintenance.filter(x=>x.machineId===m.id);
 
   c.innerHTML = `
-    <div class="detail-header"><div class="detail-title">${esc(m.machineNo||'—')} ${statusBadge(machineDerivedStatus(m.id))}<span class="mono">${esc(m.brand)} ${esc(m.model)} · ${esc(m.customer)}</span></div></div>
+    <div class="detail-header"><div class="detail-title">${esc(m.machineNo||'—')}<span class="mono">${esc(m.brand)} ${esc(m.model)} · ${esc(m.customer)}</span></div></div>
     <div class="detail-grid">
-      <div class="detail-item"><div class="k">動力類型</div><div class="v"><span class="power-tag ${esc(m.powerType)}">${esc(m.powerType)}</span></div></div>
       <div class="detail-item"><div class="k">交車日期</div><div class="v mono">${esc(m.deliveryDate||'—')}</div></div>
       <div class="detail-item"><div class="k">引擎號碼</div><div class="v mono">${esc(m.engineNo||'—')}</div></div>
       <div class="detail-item"><div class="k">噸位 / 承重</div><div class="v">${esc(m.capacity||'—')}</div></div>
@@ -882,47 +883,111 @@ function partsUsedSummary(arr){
 
 /* ============================= REPAIRS ============================= */
 let repairFilters = { q:'', status:'' };
+let repairsCustomerQuery = '';
+let currentRepairsCustomer = null;
+let currentRepairsMachine = null;
 let currentRepairParts = [];
+
+/* ---- Level 1: customer list ---- */
 function renderRepairs(){
-  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" onclick="openRepairForm()">${ICONS.plus}新增維修紀錄</button>`;
+  document.getElementById('topbarActions').innerHTML = '';
   const c = document.getElementById('content');
-  let list = DB.repairs.filter(r=>{
-    const m = getMachine(r.machineId);
-    const q = repairFilters.q.trim().toLowerCase();
-    const hay = [m?.machineNo, m?.customer, r.issue, r.action, r.technician].join(' ').toLowerCase();
-    const matchQ = !q || hay.includes(q);
-    const matchStatus = !repairFilters.status || r.status===repairFilters.status;
-    return matchQ && matchStatus;
-  }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const { groups, names: customers } = groupMachinesByCustomer(repairsCustomerQuery);
 
   c.innerHTML = `
     <div class="toolbar">
-      <div class="search-box">${ICONS.search}<input id="rSearch" placeholder="搜尋資產編號 / 客戶 / 問題描述 / 技師" value="${esc(repairFilters.q)}"></div>
-      <select class="filter" id="rStatusFilter">
-        <option value="">所有狀態</option>
-        <option ${repairFilters.status==='待處理'?'selected':''}>待處理</option>
-        <option ${repairFilters.status==='處理中'?'selected':''}>處理中</option>
-        <option ${repairFilters.status==='已完成'?'selected':''}>已完成</option>
-        <option ${repairFilters.status==='已取消'?'selected':''}>已取消</option>
-      </select>
+      <div class="search-box">${ICONS.search}<input id="rcSearch" placeholder="搜尋客戶名稱" value="${esc(repairsCustomerQuery)}"></div>
     </div>
     <div class="card">
+      ${customers.length ? `
+      <table><thead><tr><th>客戶名稱</th><th>機台數量</th><th style="width:96px"></th></tr></thead>
+      <tbody>${customers.map(name=>{
+        const list = groups[name];
+        return `<tr class="rc-row" data-customer="${esc(name)}" style="cursor:pointer">
+          <td class="cell-strong">${esc(name)}</td>
+          <td class="mono">${list.length} 台</td>
+          <td><div class="row-actions"><button class="icon-btn rc-view-btn" data-customer="${esc(name)}" title="查看車輛">${ICONS.eye}</button></div></td>
+        </tr>`;
+      }).join('')}</tbody></table>` : `<div class="empty">${ICONS.truck}<div class="msg">找不到符合條件的客戶</div><div class="hint">試試調整搜尋條件</div></div>`}
+    </div>
+  `;
+  document.getElementById('rcSearch').oninput = e=>{ repairsCustomerQuery=e.target.value; renderRepairs(); preserveFocus('rcSearch'); };
+  c.querySelectorAll('.rc-row').forEach(row=> row.addEventListener('click', ()=> openRepairsCustomer(row.dataset.customer)));
+  c.querySelectorAll('.rc-view-btn').forEach(btn=> btn.addEventListener('click', e=>{ e.stopPropagation(); openRepairsCustomer(btn.dataset.customer); }));
+}
+
+/* ---- Level 2: this customer's machines ---- */
+function openRepairsCustomer(name){
+  currentRepairsCustomer = name;
+  currentView = 'repairs-customer';
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('pageTitle').textContent = name;
+  document.getElementById('pageSub').textContent = '選擇一台機台以查看維修紀錄';
+  renderRepairsCustomer();
+}
+function renderRepairsCustomer(){
+  const name = currentRepairsCustomer;
+  const list = DB.machines.filter(m=>((m.customer||'').trim() || '（未填寫客戶）')===name);
+  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-ghost" onclick="switchView('repairs')">${ICONS.back}返回客戶列表</button>`;
+  const c = document.getElementById('content');
+  c.innerHTML = `
+    <div class="card">
       ${list.length ? `
-      <table><thead><tr><th>日期</th><th>機台 / 客戶</th><th>問題描述</th><th>使用零件</th><th>費用</th><th>技師</th><th>狀態</th><th style="width:80px"></th></tr></thead>
-      <tbody>${list.map(r=>{
-        const m = getMachine(r.machineId);
-        return `<tr>
+      <table><thead><tr><th>機號</th><th>交車日期</th><th>廠牌 / 型號</th><th>維修次數</th><th style="width:96px"></th></tr></thead>
+      <tbody>${list.map(m=>{
+        const cnt = DB.repairs.filter(r=>r.machineId===m.id).length;
+        return `<tr class="rm-row" data-id="${m.id}" style="cursor:pointer">
+          <td class="mono cell-strong">${esc(m.machineNo||'—')}</td>
+          <td class="mono">${esc(m.deliveryDate||'—')}</td>
+          <td>${esc(m.brand)} <span style="color:var(--text-faint)">${esc(m.model)}</span></td>
+          <td class="mono">${cnt} 筆</td>
+          <td><div class="row-actions"><button class="icon-btn rm-view-btn" data-id="${m.id}" title="查看維修紀錄">${ICONS.eye}</button></div></td>
+        </tr>`;
+      }).join('')}</tbody></table>` : `<div class="empty">${ICONS.truck}<div class="msg">這位客戶目前沒有堆高機資料</div></div>`}
+    </div>
+  `;
+  c.querySelectorAll('.rm-row').forEach(row=> row.addEventListener('click', ()=> openRepairsMachine(row.dataset.id)));
+  c.querySelectorAll('.rm-view-btn').forEach(btn=> btn.addEventListener('click', e=>{ e.stopPropagation(); openRepairsMachine(btn.dataset.id); }));
+}
+
+/* ---- Level 3: repair history for one machine ---- */
+function openRepairsMachine(machineId){
+  currentRepairsMachine = machineId;
+  currentView = 'repairs-machine';
+  const m = getMachine(machineId);
+  document.getElementById('pageTitle').textContent = m ? (m.machineNo||'—') : '維修紀錄';
+  document.getElementById('pageSub').textContent = m ? `${esc(m.brand)} ${esc(m.model)} · ${esc(m.customer)}` : '';
+  renderRepairsMachine();
+}
+function renderRepairsMachine(){
+  const m = getMachine(currentRepairsMachine);
+  const actions = document.getElementById('topbarActions');
+  const c = document.getElementById('content');
+  if(!m){ actions.innerHTML=''; c.innerHTML = `<div class="empty">${ICONS.alert}<div class="msg">找不到這台機台</div></div>`; return; }
+  actions.innerHTML = `
+    <button class="btn btn-ghost" onclick="openRepairsCustomer(currentRepairsCustomer)">${ICONS.back}返回車輛列表</button>
+    <button class="btn btn-primary" onclick="openRepairForm(null, currentRepairsMachine)">${ICONS.plus}新增維修紀錄</button>
+  `;
+  const list = DB.repairs.filter(r=>r.machineId===m.id).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  c.innerHTML = `
+    <div class="card">
+      ${list.length ? `
+      <table><thead><tr><th>日期</th><th>問題描述</th><th>使用零件</th><th>費用</th><th>技師</th><th>狀態</th><th style="width:80px"></th></tr></thead>
+      <tbody>${list.map(r=>`
+        <tr>
           <td class="mono">${esc(r.date)}</td>
-          <td class="cell-strong">${esc(m?m.machineNo:'—')}<div class="cell-sub">${esc(m?m.customer:'')}</div></td>
           <td>${esc(r.issue)}</td><td>${partsUsedSummary(r.partsUsed)}</td><td class="mono">${money(r.cost)}</td>
           <td>${esc(r.technician||'—')}</td><td>${statusBadge(r.status)}</td>
           <td><div class="row-actions"><button class="icon-btn" title="編輯" onclick="openRepairForm('${r.id}')">${ICONS.edit}</button><button class="icon-btn" title="刪除" onclick="deleteRepair('${r.id}')">${ICONS.trash}</button></div></td>
-        </tr>`;
-      }).join('')}</tbody></table>` : `<div class="empty">${ICONS.wrench}<div class="msg">找不到符合條件的維修紀錄</div><div class="hint">試試調整搜尋條件，或新增一筆維修紀錄</div></div>`}
+        </tr>`).join('')}</tbody></table>` : `<div class="empty">${ICONS.wrench}<div class="msg">這台機台尚無維修紀錄</div><div class="hint">點右上角新增第一筆維修紀錄</div></div>`}
     </div>
   `;
-  document.getElementById('rSearch').oninput = e=>{ repairFilters.q=e.target.value; renderRepairs(); preserveFocus('rSearch'); };
-  document.getElementById('rStatusFilter').onchange = e=>{ repairFilters.status=e.target.value; renderRepairs(); };
+}
+function rerenderRepairViews(){
+  if(currentView==='repairs-machine') renderRepairsMachine();
+  else if(currentView==='machine-detail') renderMachineDetail();
+  else if(currentView==='repairs-customer') renderRepairsCustomer();
+  else render();
 }
 function machineOptions(selectedId){
   if(!DB.machines.length) return `<option value="">請先建立堆高機資料</option>`;
@@ -991,7 +1056,7 @@ async function saveRepair(id){
     showToast('已新增維修紀錄');
   }
   await saveData(); closeModal();
-  currentView==='machine-detail' ? renderMachineDetail() : render();
+  rerenderRepairViews();
 }
 async function deleteRepair(id){
   if(!confirm('確定要刪除這筆維修紀錄嗎？已使用的零件庫存將會退回。')) return;
@@ -999,7 +1064,7 @@ async function deleteRepair(id){
   if(r) adjustStock(r.partsUsed, +1);
   DB.repairs = DB.repairs.filter(r=>r.id!==id);
   await saveData(); showToast('已刪除');
-  currentView==='machine-detail' ? renderMachineDetail() : render();
+  rerenderRepairViews();
 }
 
 /* ============================= MAINTENANCE ============================= */
