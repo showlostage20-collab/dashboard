@@ -530,7 +530,7 @@ async function loadData(){
   let seededNew = false;
   DB.machines.forEach(m=>{
     if(m.brand && m.brand.trim() && !existingNames.has(m.brand.trim())){
-      DB.brands.push({id:uid(), name:m.brand.trim()});
+      DB.brands.push({id:uid(), name:m.brand.trim(), sortOrder: nextSortOrder(DB.brands)});
       existingNames.add(m.brand.trim());
       seededNew = true;
     }
@@ -539,7 +539,7 @@ async function loadData(){
   const existingIssues = new Set(DB.issueTypes.map(t=>t.name));
   DB.repairs.forEach(r=>{
     if(r.issue && r.issue.trim() && !existingIssues.has(r.issue.trim())){
-      DB.issueTypes.push({id:uid(), name:r.issue.trim()});
+      DB.issueTypes.push({id:uid(), name:r.issue.trim(), sortOrder: nextSortOrder(DB.issueTypes)});
       existingIssues.add(r.issue.trim());
       seededNew = true;
     }
@@ -553,8 +553,8 @@ async function loadData(){
   Object.entries(defaultSeeds).forEach(([listKey, values])=>{
     const has = DB.optionLists.some(x=>x.listKey===listKey);
     if(!has){
-      values.forEach(v=>{
-        DB.optionLists.push({id:uid(), listKey, name:v});
+      values.forEach((v,i)=>{
+        DB.optionLists.push({id:uid(), listKey, name:v, sortOrder:i+1});
       });
       seededNew = true;
     }
@@ -564,12 +564,12 @@ async function loadData(){
   const existingCapacities = new Set(DB.optionLists.filter(x=>x.listKey==='capacity').map(x=>x.name));
   DB.machines.forEach(m=>{
     if(m.customer && m.customer.trim() && !existingCustomers.has(m.customer.trim())){
-      DB.optionLists.push({id:uid(), listKey:'customer', name:m.customer.trim()});
+      DB.optionLists.push({id:uid(), listKey:'customer', name:m.customer.trim(), sortOrder: nextSortOrder(DB.optionLists.filter(x=>x.listKey==='customer'))});
       existingCustomers.add(m.customer.trim());
       seededNew = true;
     }
     if(m.capacity && m.capacity.trim() && !existingCapacities.has(m.capacity.trim())){
-      DB.optionLists.push({id:uid(), listKey:'capacity', name:m.capacity.trim()});
+      DB.optionLists.push({id:uid(), listKey:'capacity', name:m.capacity.trim(), sortOrder: nextSortOrder(DB.optionLists.filter(x=>x.listKey==='capacity'))});
       existingCapacities.add(m.capacity.trim());
       seededNew = true;
     }
@@ -577,7 +577,7 @@ async function loadData(){
   const existingTechnicians = new Set(DB.optionLists.filter(x=>x.listKey==='technician').map(x=>x.name));
   DB.repairs.forEach(r=>{
     if(r.technician && r.technician.trim() && !existingTechnicians.has(r.technician.trim())){
-      DB.optionLists.push({id:uid(), listKey:'technician', name:r.technician.trim()});
+      DB.optionLists.push({id:uid(), listKey:'technician', name:r.technician.trim(), sortOrder: nextSortOrder(DB.optionLists.filter(x=>x.listKey==='technician'))});
       existingTechnicians.add(r.technician.trim());
       seededNew = true;
     }
@@ -615,20 +615,21 @@ function showToast(msg, isErr){
 function getMachine(id){ return DB.machines.find(m=>m.id===id); }
 function getPart(id){ return DB.parts.find(p=>p.id===id); }
 function getVendor(id){ return DB.vendors.find(v=>v.id===id); }
-function optionListValues(listKey){ return DB.optionLists.filter(x=>x.listKey===listKey && x.visible!==false).map(x=>x.name).sort((a,b)=>a.localeCompare(b,'zh-Hant')); }
-function visibleBrandNames(){ return DB.brands.filter(b=>b.visible!==false).map(b=>b.name).sort((a,b)=>a.localeCompare(b,'zh-Hant')); }
-function visibleIssueNames(){ return DB.issueTypes.filter(t=>t.visible!==false).map(t=>t.name).sort((a,b)=>a.localeCompare(b,'zh-Hant')); }
+function optionListValues(listKey){ return DB.optionLists.filter(x=>x.listKey===listKey && x.visible!==false).sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0)).map(x=>x.name); }
+function visibleBrandNames(){ return DB.brands.filter(b=>b.visible!==false).sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0)).map(b=>b.name); }
+function visibleIssueNames(){ return DB.issueTypes.filter(t=>t.visible!==false).sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0)).map(t=>t.name); }
 /* 輸入框打了下拉選單裡沒有的新值時，自動補進「系統管理」對應的選項清單 */
 async function autoAddOptionListValue(listKey, value){
   if(!value) return;
   if(DB.optionLists.some(x=>x.listKey===listKey && x.name===value)) return;
-  const row = {id:uid(), listKey, name:value, visible:true};
+  const row = {id:uid(), listKey, name:value, visible:true, sortOrder: nextSortOrder(DB.optionLists.filter(x=>x.listKey===listKey))};
   const err = await upsertRow('option_lists', row);
   if(!err) DB.optionLists.push(row);
 }
 function esc(s){ return (s??'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function val(id){ return document.getElementById(id).value; }
 function money(n){ return n? 'NT$'+Number(n).toLocaleString() : '—'; }
+function nextSortOrder(items){ return items.reduce((max,x)=>Math.max(max, x.sortOrder??0), 0) + 1; }
 
 /* ---------- 自訂搜尋式下拉選單元件 ---------- */
 function setupCombo(inputId, getOptions, onSelect){
@@ -738,6 +739,8 @@ const ICONS = {
   download:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 19h16"/></svg>',
   upload:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-4 4m4-4l4 4"/><path d="M4 5h16"/></svg>',
   tag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.6 12.3L12.3 20.6a1.5 1.5 0 01-2.1 0l-7-7a1.5 1.5 0 010-2.1L11.5 3.2A1.5 1.5 0 0112.6 2.8L20 3l.2 7.4a1.5 1.5 0 01-.4 1.1z"/><circle cx="15.5" cy="8.5" r="1.5"/></svg>',
+  arrowUp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+  arrowDown:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12l7 7 7-7"/></svg>',
 };
 
 /* ============================= NAV DEFINITION ============================= */
@@ -896,7 +899,7 @@ async function addTodo(){
   const err = await upsertRow('todos', row);
   if(err){ showToast('儲存失敗：'+err, true); return; }
   if(!DB.issueTypes.some(t=>t.name===issue)){
-    const newIssue = {id:uid(), name:issue};
+    const newIssue = {id:uid(), name:issue, sortOrder: nextSortOrder(DB.issueTypes)};
     const issueErr = await upsertRow('issue_types', newIssue);
     if(!issueErr) DB.issueTypes.push(newIssue);
   }
@@ -1131,7 +1134,7 @@ async function saveMachine(id){
   const err = await upsertRow('machines', row);
   if(err){ showToast('儲存失敗：'+err, true); return; }
   if(brandVal && !DB.brands.some(b=>b.name===brandVal)){
-    const newBrand = {id:uid(), name:brandVal};
+    const newBrand = {id:uid(), name:brandVal, sortOrder: nextSortOrder(DB.brands)};
     const brandErr = await upsertRow('brands', newBrand);
     if(!brandErr) DB.brands.push(newBrand);
   }
@@ -1411,7 +1414,7 @@ async function saveRepair(id){
   if(err){ showToast('儲存失敗：'+err, true); return; }
 
   if(!DB.issueTypes.some(t=>t.name===issueVal)){
-    const newIssue = {id:uid(), name:issueVal};
+    const newIssue = {id:uid(), name:issueVal, sortOrder: nextSortOrder(DB.issueTypes)};
     const issueErr = await upsertRow('issue_types', newIssue);
     if(!issueErr) DB.issueTypes.push(newIssue);
   }
@@ -1735,23 +1738,39 @@ function renderSystemLists(){
   document.getElementById('systemListSelect').onchange = e=>{ currentSystemListKey = e.target.value; renderSystemLists(); };
 }
 function renderSystemListEditor(cfg){
-  const items = cfg.getItems().slice().sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant'));
+  const items = cfg.getItems().slice().sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0));
   return `
     <div class="section-title" style="margin-top:0"><span>${esc(cfg.label)}選項</span><button class="btn btn-primary btn-sm" onclick="openSystemListItemForm('${cfg.key}')">${ICONS.plus}新增選項</button></div>
     <div class="card">
       ${items.length ? `
-      <table><thead><tr><th>選項內容</th><th style="width:100px">顯示</th><th style="width:160px">操作</th></tr></thead>
-      <tbody>${items.map(it=>{
+      <table><thead><tr><th>選項內容</th><th style="width:100px">顯示</th><th style="width:250px">操作</th></tr></thead>
+      <tbody>${items.map((it,idx)=>{
         const visible = it.visible !== false;
         return `<tr><td class="cell-strong">${esc(it.name)}</td>
         <td><span class="badge ${visible?'green':'gray'}">${visible?'是':'否'}</span></td>
         <td><div class="row-actions">
+          <button class="icon-btn" title="上移" ${idx===0?'disabled style="opacity:.35;cursor:not-allowed"':''} onclick="moveSystemListItem('${cfg.key}','${it.id}',-1)">${ICONS.arrowUp}</button>
+          <button class="icon-btn" title="下移" ${idx===items.length-1?'disabled style="opacity:.35;cursor:not-allowed"':''} onclick="moveSystemListItem('${cfg.key}','${it.id}',1)">${ICONS.arrowDown}</button>
           <button class="btn btn-solid-green btn-sm" onclick="openSystemListItemForm('${cfg.key}','${it.id}')">更新</button>
           <button class="btn btn-solid-red btn-sm" onclick="deleteSystemListItem('${cfg.key}','${it.id}')">刪除</button>
         </div></td></tr>`;
       }).join('')}</tbody></table>` : `<div class="empty" style="padding:40px"><div class="msg">目前沒有任何選項</div><div class="hint">點右上角新增第一個選項</div></div>`}
     </div>
   `;
+}
+async function moveSystemListItem(listKey, id, direction){
+  const cfg = SYSTEM_LISTS.find(x=>x.key===listKey);
+  const items = cfg.getItems().slice().sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0));
+  const idx = items.findIndex(x=>x.id===id);
+  const swapIdx = idx + direction;
+  if(idx<0 || swapIdx<0 || swapIdx>=items.length) return;
+  const a = items[idx], b = items[swapIdx];
+  const tmp = a.sortOrder ?? 0;
+  a.sortOrder = b.sortOrder ?? 0;
+  b.sortOrder = tmp;
+  const err = await upsertRows(cfg.table, [a,b]);
+  if(err){ showToast('排序更新失敗：'+err, true); return; }
+  renderSystemLists();
 }
 function openSystemListItemForm(listKey, id){
   const cfg = SYSTEM_LISTS.find(x=>x.key===listKey);
@@ -1780,12 +1799,13 @@ async function saveSystemListItem(listKey, id){
   const items = cfg.getItems();
   const dup = items.find(x=>x.name===name && x.id!==id);
   if(dup){ showToast('這個選項已經存在', true); return; }
-  const row = id ? { id, name, visible, ...cfg.extra } : { id: uid(), name, visible, ...cfg.extra };
+  const old = id ? items.find(x=>x.id===id) : null;
+  const maxOrder = items.reduce((max,x)=>Math.max(max, x.sortOrder??0), 0);
+  const row = id ? { id, name, visible, sortOrder: old.sortOrder ?? 0, ...cfg.extra } : { id: uid(), name, visible, sortOrder: maxOrder+1, ...cfg.extra };
   const err = await upsertRow(cfg.table, row);
   if(err){ showToast('儲存失敗：'+err, true); return; }
   let msg = id ? '已更新選項' : '已新增選項', isErr = false;
   if(id){
-    const old = items.find(x=>x.id===id);
     const oldName = old.name;
     Object.assign(old, row);
     if(cfg.onRename && oldName !== name){
