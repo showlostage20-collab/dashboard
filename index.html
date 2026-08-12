@@ -359,6 +359,7 @@
   .legend .item{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-muted);}
   .legend .sw{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
   .report-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;min-width:0;}
+  .report-grid > div{min-width:0;}
 
   .settings-section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:18px;}
   .settings-section h3{font-size:14px;font-weight:800;margin-bottom:4px;}
@@ -2005,16 +2006,16 @@ function renderCustomers(){
   document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" onclick="openCustomerForm()">${ICONS.plus}新增客戶</button>`;
   const c = document.getElementById('content');
   const q = customerFilters.q.trim().toLowerCase();
-  const list = DB.customers.filter(x=> !q || [x.name,x.phone,x.address].join(' ').toLowerCase().includes(q))
+  const list = DB.customers.filter(x=> !q || [x.name,x.phone,x.address,x.taxId].join(' ').toLowerCase().includes(q))
     .sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0));
   c.innerHTML = `
-    <div class="toolbar"><div class="search-box">${ICONS.search}<input id="cuSearch" placeholder="搜尋客戶名稱 / 電話 / 地址" value="${esc(customerFilters.q)}"></div></div>
+    <div class="toolbar"><div class="search-box">${ICONS.search}<input id="cuSearch" placeholder="搜尋客戶名稱 / 電話 / 地址 / 統編" value="${esc(customerFilters.q)}"></div></div>
     <div class="card">
       ${list.length ? `
-      <table><thead><tr><th>客戶名稱</th><th>電話</th><th>地址</th><th>機台數</th><th style="width:96px"></th></tr></thead>
+      <table><thead><tr><th>客戶名稱</th><th>統編</th><th>電話</th><th>地址</th><th>機台數</th><th style="width:96px"></th></tr></thead>
       <tbody>${list.map(x=>{
         const machineCount = DB.machines.filter(m=>m.customer===x.name).length;
-        return `<tr><td class="cell-strong">${esc(x.name)}</td><td class="mono">${esc(x.phone||'—')}</td><td>${esc(x.address||'—')}</td><td class="mono">${machineCount} 台</td>
+        return `<tr><td class="cell-strong">${esc(x.name)}</td><td class="mono">${esc(x.taxId||'—')}</td><td class="mono">${esc(x.phone||'—')}</td><td>${esc(x.address||'—')}</td><td class="mono">${machineCount} 台</td>
         <td><div class="row-actions"><button class="icon-btn" title="編輯" onclick="openCustomerForm('${x.id}')">${ICONS.edit}</button><button class="icon-btn" title="刪除" onclick="deleteCustomer('${x.id}')">${ICONS.trash}</button></div></td></tr>`;
       }).join('')}</tbody></table>` : `<div class="empty">${ICONS.users}<div class="msg">尚未建立任何客戶資料</div><div class="hint">新增客戶後，堆高機表單的客戶名稱就能直接下拉選擇</div></div>`}
     </div>
@@ -2026,7 +2027,10 @@ function openCustomerForm(id){
   document.getElementById('modalBox').innerHTML = `
     <div class="modal-head"><h2>${x?'編輯客戶':'新增客戶'}</h2><div class="modal-close" onclick="closeModal()">✕</div></div>
     <div class="modal-body">
-      <div class="field"><label>客戶名稱 <span class="req">*</span></label><input id="f_custName" value="${esc(x?.name||'')}" placeholder="例如 大成物流"></div>
+      <div class="form-row">
+        <div class="field"><label>客戶名稱 <span class="req">*</span></label><input id="f_custName" value="${esc(x?.name||'')}" placeholder="例如 大成物流"></div>
+        <div class="field"><label>統一編號</label><input id="f_custTaxId" value="${esc(x?.taxId||'')}" placeholder="例如 12345678"></div>
+      </div>
       <div class="form-row">
         <div class="field"><label>電話</label><input id="f_custPhone" value="${esc(x?.phone||'')}" placeholder="例如 02-1234-5678"></div>
         <div class="field"><label>地址</label><input id="f_custAddress" value="${esc(x?.address||'')}" placeholder="客戶地址"></div>
@@ -2042,7 +2046,7 @@ async function saveCustomer(id){
   if(!name){ showToast('請填寫客戶名稱', true); return; }
   const dup = DB.customers.find(x=>x.name===name && x.id!==id);
   if(dup){ showToast('這個客戶名稱已經存在', true); return; }
-  const data = { name, phone:val('f_custPhone').trim(), address:val('f_custAddress').trim(), notes:val('f_custNotes').trim() };
+  const data = { name, taxId:val('f_custTaxId').trim(), phone:val('f_custPhone').trim(), address:val('f_custAddress').trim(), notes:val('f_custNotes').trim() };
   const old = id ? getCustomer(id) : null;
   const row = id ? { id, ...data, sortOrder: old.sortOrder ?? 0 } : { id: uid(), ...data, sortOrder: nextSortOrder(DB.customers) };
   const err = await upsertRow('customers', row);
