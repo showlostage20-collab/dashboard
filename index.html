@@ -786,9 +786,11 @@ async function toggleTodoDone(id){
   renderDashboard();
 }
 async function deleteTodo(id){
+  if(!confirm('確定要刪除這筆待辦事項嗎？')) return;
+  const { error } = await sb.from('todos').delete().eq('id', id);
+  if(error){ showToast('刪除失敗，請檢查網路連線', true); return; }
   DB.todos = DB.todos.filter(x=>x.id!==id);
-  try{ await sb.from('todos').delete().eq('id', id); }catch(e){}
-  await saveData();
+  showToast('已刪除');
   renderDashboard();
 }
 
@@ -1000,11 +1002,12 @@ async function saveMachine(id){
 }
 async function deleteMachine(id){
   if(!confirm('確定要刪除這台堆高機嗎？相關的維修紀錄與保養排程也會一併移除。')) return;
+  const { error } = await sb.from('machines').delete().eq('id', id);
+  if(error){ showToast('刪除失敗，請檢查網路連線', true); return; }
   DB.machines = DB.machines.filter(m=>m.id!==id);
   DB.repairs = DB.repairs.filter(r=>r.machineId!==id);
   DB.maintenance = DB.maintenance.filter(x=>x.machineId!==id);
-  try{ await sb.from('machines').delete().eq('id', id); }catch(e){}
-  await saveData(); showToast('已刪除'); rerenderMachineViews();
+  showToast('已刪除'); rerenderMachineViews();
 }
 
 /* ---- Machine detail ---- */
@@ -1271,10 +1274,11 @@ async function saveRepair(id){
 }
 async function deleteRepair(id){
   if(!confirm('確定要刪除這筆維修紀錄嗎？已使用的零件庫存將會退回。')) return;
+  const { error } = await sb.from('repairs').delete().eq('id', id);
+  if(error){ showToast('刪除失敗，請檢查網路連線', true); return; }
   const r = DB.repairs.find(x=>x.id===id);
   if(r) adjustStock(r.partsUsed, +1);
   DB.repairs = DB.repairs.filter(r=>r.id!==id);
-  try{ await sb.from('repairs').delete().eq('id', id); }catch(e){}
   await saveData(); showToast('已刪除');
   rerenderRepairViews();
 }
@@ -1446,9 +1450,10 @@ async function markMaintained(id){
 }
 async function deleteMaintenance(id){
   if(!confirm('確定要刪除這個保養排程嗎？')) return;
+  const { error } = await sb.from('maintenance').delete().eq('id', id);
+  if(error){ showToast('刪除失敗，請檢查網路連線', true); return; }
   DB.maintenance = DB.maintenance.filter(x=>x.id!==id);
-  try{ await sb.from('maintenance').delete().eq('id', id); }catch(e){}
-  await saveData(); showToast('已刪除');
+  showToast('已刪除');
   rerenderMaintenanceViews();
 }
 
@@ -1504,9 +1509,10 @@ async function deleteBrand(id){
   const b = DB.brands.find(x=>x.id===id);
   if(!b) return;
   if(!confirm(`確定要刪除「${b.name}」嗎？已使用此廠牌的堆高機資料不會被刪除，但廠牌欄位需要重新選擇。`)) return;
+  const { error } = await sb.from('brands').delete().eq('id', id);
+  if(error){ showToast('刪除失敗，請檢查網路連線', true); return; }
   DB.brands = DB.brands.filter(x=>x.id!==id);
-  try{ await sb.from('brands').delete().eq('id', id); }catch(e){}
-  await saveData(); showToast('已刪除'); render();
+  showToast('已刪除'); render();
 }
 
 /* ============================= PARTS ============================= */
@@ -1588,9 +1594,10 @@ async function savePart(id){
 }
 async function deletePart(id){
   if(!confirm('確定要刪除這個零件嗎？')) return;
+  const { error } = await sb.from('parts').delete().eq('id', id);
+  if(error){ showToast('刪除失敗，請檢查網路連線', true); return; }
   DB.parts = DB.parts.filter(p=>p.id!==id);
-  try{ await sb.from('parts').delete().eq('id', id); }catch(e){}
-  await saveData(); showToast('已刪除'); render();
+  showToast('已刪除'); render();
 }
 
 /* ============================= VENDORS ============================= */
@@ -1649,9 +1656,10 @@ async function saveVendor(id){
 }
 async function deleteVendor(id){
   if(!confirm('確定要刪除這個廠商嗎？')) return;
+  const { error } = await sb.from('vendors').delete().eq('id', id);
+  if(error){ showToast('刪除失敗，請檢查網路連線', true); return; }
   DB.vendors = DB.vendors.filter(v=>v.id!==id);
   DB.parts.forEach(p=>{ if(p.vendorId===id) p.vendorId=null; });
-  try{ await sb.from('vendors').delete().eq('id', id); }catch(e){}
   await saveData(); showToast('已刪除'); render();
 }
 
