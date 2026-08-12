@@ -508,6 +508,15 @@ function cycleStatus(item){
   if(daysLeft <= 14) return {state:'amber', label:`剩 ${daysLeft} 天`, daysLeft};
   return {state:'green', label:`剩 ${daysLeft} 天`, daysLeft};
 }
+/* 本月需要保養：下次保養日在本月月底之前（含已逾期的） */
+function isDueByEndOfThisMonth(item){
+  const next = nextDue(item);
+  if(!next) return false;
+  const now = new Date();
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth()+1, 0);
+  endOfMonth.setHours(23,59,59,999);
+  return new Date(next) <= endOfMonth;
+}
 function cycleGauge(item){
   const st = cycleStatus(item);
   if(st.daysLeft===null) return `<div class="cycle-label">尚未設定保養日期</div>`;
@@ -597,6 +606,9 @@ function renderNav(){
       currentRepairsCustomer=null;
       currentRepairsMachine=null;
       repairsMachineQuery='';
+      currentMaintenanceCustomer=null;
+      currentMaintenanceMachine=null;
+      maintenanceCustomerQuery='';
       switchView(el.dataset.view);
       if(window.innerWidth <= 900) closeMobileSidebar();
     });
@@ -625,7 +637,7 @@ const TITLES = {
   dashboard:['Dashboard','車隊總覽與待辦保養提醒'],
   machines:['堆高機管理','建立與管理客戶的堆高機資產資料'],
   repairs:['維修紀錄','選擇客戶查看機台，再查看或新增維修紀錄'],
-  maintenance:['保養管理','設定保養週期，掌握每台機台的下次保養日'],
+  maintenance:['保養管理','選擇客戶查看機台，再查看或新增保養排程'],
   brands:['廠牌管理','管理堆高機廠牌清單，新增堆高機時可直接下拉選擇'],
   parts:['零件管理','管理零件庫存、價格與供應商'],
   vendors:['維修廠商','管理配合的零件供應商與外包廠商'],
@@ -669,7 +681,8 @@ function renderTodoSection(){
       <div class="todo-quick-add">
         <input id="todoCustomer" placeholder="客戶名稱" list="todoCustomerList" autocomplete="off">
         <datalist id="todoCustomerList">${customerNames.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
-        <input id="todoIssue" placeholder="問題描述" autocomplete="off">
+        <input id="todoIssue" placeholder="問題描述" list="todoIssueList" autocomplete="off">
+        <datalist id="todoIssueList">${DB.issueTypes.map(t=>`<option value="${esc(t.name)}">`).join('')}</datalist>
         <button class="btn btn-primary btn-sm" id="todoAddBtn">${ICONS.plus}新增待辦</button>
       </div>
       <div id="todoList">
@@ -704,6 +717,7 @@ async function addTodo(){
   const customer = document.getElementById('todoCustomer').value.trim();
   const issue = document.getElementById('todoIssue').value.trim();
   if(!customer || !issue){ showToast('請填寫客戶與問題', true); return; }
+  if(!DB.issueTypes.some(t=>t.name===issue)){ DB.issueTypes.push({id:uid(), name:issue}); }
   DB.todos.unshift({id:uid(), customer, issue, createdAt:new Date().toISOString(), done:false});
   await saveData();
   showToast('已新增待辦事項');
@@ -732,8 +746,8 @@ function renderDashboard(){
   const openRepairs = DB.repairs.filter(r=>r.status!=='已完成' && r.status!=='已取消').length;
 
   const dueList = DB.maintenance.map(item=>({item, st:cycleStatus(item)}))
-    .filter(x=>x.st.daysLeft!==null && x.st.daysLeft<=14)
-    .sort((a,b)=>a.st.daysLeft-b.st.daysLeft);
+    .filter(x=>isDueByEndOfThisMonth(x.item))
+    .sort((a,b)=>(nextDue(a.item)||'').localeCompare(nextDue(b.item)||''));
 
   const recentRepairs = [...DB.repairs].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,6);
   const lowStock = DB.parts.filter(p=>Number(p.stock) <= Number(p.minStock||0));
@@ -743,24 +757,26 @@ function renderDashboard(){
       <div class="stat-card blue"><div class="bar"></div><div class="label">機台總數</div><div class="value">${total}</div></div>
       <div class="stat-card amber"><div class="bar"></div><div class="label">維修中機台</div><div class="value">${inRepair}</div></div>
       <div class="stat-card red"><div class="bar"></div><div class="label">待處理維修單</div><div class="value">${openRepairs}</div></div>
-      <div class="stat-card purple"><div class="bar"></div><div class="label">保養提醒（14天內）</div><div class="value">${dueList.length}</div></div>
+      <div class="stat-card purple"><div class="bar"></div><div class="label">本月需保養</div><div class="value">${dueList.length}</div></div>
     </div>
 
     ${renderTodoSection()}
 
-    <div class="section-title"><span>即將到期 / 逾期保養（14 天內）</span><span class="badge ${dueList.length?'red':'green'}">${dueList.length} 台</span></div>
+    <div class="section-title"><span>本月保養提醒</span><span class="badge ${dueList.length?'red':'green'}">${dueList.length} 筆</span></div>
     <div class="card">
       ${dueList.length ? `
-      <table><thead><tr><th>機台</th><th>客戶</th><th>保養類型</th><th>週期</th><th style="width:180px">狀態</th><th></th></tr></thead>
+      <table><thead><tr><th>客戶</th><th>機台</th><th>保養內容</th><th>週期</th><th style="width:180px">狀態</th><th></th></tr></thead>
       <tbody>${dueList.map(({item})=>{
         const m = getMachine(item.machineId);
         return `<tr>
-          <td class="cell-strong mono">${esc(m?m.machineNo:'—')}<div class="cell-sub">${esc(m?m.brand+' '+m.model:'')}</div></td>
-          <td>${esc(m?m.customer:'—')}</td><td>${esc(item.type)}</td><td class="mono">${item.cycleDays} 天</td>
+          <td class="cell-strong">${esc(m?m.customer:'—')}</td>
+          <td class="mono">${esc(m?m.machineNo:'—')}<div class="cell-sub">${esc(m?m.brand+' '+m.model:'')}</div></td>
+          <td>${esc(item.type)}${item.notes? `<div class="cell-sub">${esc(item.notes)}</div>` : ''}</td>
+          <td class="mono">${item.cycleDays} 天</td>
           <td>${cycleGauge(item)}</td>
           <td><div class="row-actions"><button class="icon-btn" title="查看機台" onclick="openMachineDetail('${item.machineId}')">${ICONS.eye}</button></div></td>
         </tr>`;
-      }).join('')}</tbody></table>` : `<div class="empty">${ICONS.check}<div class="msg">目前沒有即將到期的保養項目</div><div class="hint">所有機台的保養排程都在安全範圍內</div></div>`}
+      }).join('')}</tbody></table>` : `<div class="empty">${ICONS.check}<div class="msg">這個月沒有需要保養的機台</div><div class="hint">所有機台的保養排程都在安全範圍內</div></div>`}
     </div>
 
     <div class="report-grid" style="margin-top:26px">
@@ -877,20 +893,28 @@ function renderCustomerDetail(){
 
 function openMachineForm(id, presetCustomer){
   const m = id ? getMachine(id) : null;
+  const customerNames = [...new Set(DB.machines.map(x=>x.customer).filter(Boolean))];
   document.getElementById('modalBox').innerHTML = `
     <div class="modal-head"><h2>${m?'編輯堆高機':'新增堆高機'}</h2><div class="modal-close" onclick="closeModal()">✕</div></div>
     <div class="modal-body">
       <div class="form-row">
         <div class="field"><label>機號 <span class="req">*</span></label><input id="f_machineNo" value="${esc(m?.machineNo||'')}" placeholder="例如 8FD30-12345"></div>
-        <div class="field"><label>客戶名稱 <span class="req">*</span></label><input id="f_customer" value="${esc(m?.customer || presetCustomer || '')}" placeholder="例如 大成物流"></div>
+        <div class="field"><label>客戶名稱 <span class="req">*</span></label>
+          <input id="f_customer" list="f_customer_list" value="${esc(m?.customer || presetCustomer || '')}" placeholder="搜尋或輸入客戶名稱" autocomplete="off">
+          <datalist id="f_customer_list">${customerNames.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+        </div>
       </div>
       <div class="form-row">
         <div class="field"><label>交車日期</label><input type="date" id="f_deliveryDate" value="${esc(m?.deliveryDate||'')}"></div>
-        <div class="field"><label>動力類型</label><select id="f_powerType">${['電動','柴油','汽油','其他'].map(p=>`<option ${m?.powerType===p?'selected':''}>${p}</option>`).join('')}</select></div>
+        <div class="field"><label>動力類型</label>
+          <input id="f_powerType" list="f_powerType_list" value="${esc(m?.powerType||'')}" placeholder="搜尋或選擇動力類型" autocomplete="off">
+          <datalist id="f_powerType_list">${['電動','柴油','汽油','其他'].map(p=>`<option value="${p}">`).join('')}</datalist>
+        </div>
       </div>
       <div class="form-row">
         <div class="field"><label>廠牌</label>
-          <select id="f_brand" onchange="handleBrandSelectChange(this)">${brandOptionsHTML(m?.brand||'')}</select>
+          <input id="f_brand" list="f_brand_list" value="${esc(m?.brand||'')}" placeholder="搜尋或輸入新廠牌" autocomplete="off">
+          <datalist id="f_brand_list">${DB.brands.map(b=>`<option value="${esc(b.name)}">`).join('')}</datalist>
         </div>
         <div class="field"><label>型號</label><input id="f_model" value="${esc(m?.model||'')}" placeholder="例如 8FD30"></div>
       </div>
@@ -912,9 +936,9 @@ function rerenderMachineViews(){
 async function saveMachine(id){
   const machineNo = val('f_machineNo').trim(), customer = val('f_customer').trim();
   if(!machineNo || !customer){ showToast('請填寫機號與客戶名稱', true); return; }
-  const brandVal = val('f_brand');
-  if(brandVal === '__new__'){ showToast('請先完成新增廠牌，或選擇一個廠牌', true); return; }
-  const data = { machineNo, customer, deliveryDate:val('f_deliveryDate'), powerType:val('f_powerType'), brand:brandVal,
+  const brandVal = val('f_brand').trim();
+  if(brandVal && !DB.brands.some(b=>b.name===brandVal)){ DB.brands.push({id:uid(), name:brandVal}); }
+  const data = { machineNo, customer, deliveryDate:val('f_deliveryDate'), powerType:val('f_powerType').trim(), brand:brandVal,
     model:val('f_model').trim(), engineNo:val('f_engineNo').trim(), capacity:val('f_capacity').trim(), notes:val('f_notes').trim() };
   if(id){ Object.assign(getMachine(id), data); showToast('已更新堆高機資料'); }
   else{ data.id=uid(); data.createdAt=todayISO(); DB.machines.unshift(data); showToast('已新增堆高機'); currentDetailCustomer = customer; }
@@ -1038,12 +1062,14 @@ function renderRepairsCustomer(){
   c.innerHTML = `
     <div class="card">
       ${list.length ? `
-      <table><thead><tr><th>機號</th><th>交車日期</th><th>廠牌 / 型號</th><th>維修次數</th><th style="width:96px"></th></tr></thead>
+      <table><thead><tr><th>機號</th><th>上次維修日期</th><th>廠牌 / 型號</th><th>維修次數</th><th style="width:96px"></th></tr></thead>
       <tbody>${list.map(m=>{
-        const cnt = DB.repairs.filter(r=>r.machineId===m.id).length;
+        const machineRepairs = DB.repairs.filter(r=>r.machineId===m.id);
+        const cnt = machineRepairs.length;
+        const lastDate = machineRepairs.map(r=>r.date).filter(Boolean).sort().slice(-1)[0];
         return `<tr class="rm-row" data-id="${m.id}" style="cursor:pointer">
           <td class="mono cell-strong">${esc(m.machineNo||'—')}</td>
-          <td class="mono">${esc(m.deliveryDate||'—')}</td>
+          <td class="mono">${esc(lastDate||'—')}</td>
           <td>${esc(m.brand)} <span style="color:var(--text-faint)">${esc(m.model)}</span></td>
           <td class="mono">${cnt} 筆</td>
           <td><div class="row-actions"><button class="icon-btn rm-view-btn" data-id="${m.id}" title="查看維修紀錄">${ICONS.eye}</button></div></td>
@@ -1105,24 +1131,26 @@ function rerenderRepairViews(){
   else if(currentView==='repairs-customer') renderRepairsCustomer();
   else render();
 }
-function machineOptions(selectedId){
-  if(!DB.machines.length) return `<option value="">請先建立堆高機資料</option>`;
-  return DB.machines.map(m=>`<option value="${m.id}" ${m.id===selectedId?'selected':''}>${esc(m.machineNo)} · ${esc(m.customer)} (${esc(m.brand)} ${esc(m.model)})</option>`).join('');
-}
-function partOptionsFor(selectedId){
-  if(!DB.parts.length) return `<option value="">尚無零件資料</option>`;
-  return `<option value="">選擇零件…</option>` + DB.parts.map(p=>`<option value="${p.id}" ${p.id===selectedId?'selected':''}>${esc(p.name)}（庫存 ${p.stock}）</option>`).join('');
-}
+function partComboLabel(p){ return `${p.name}（庫存 ${p.stock}）`; }
+
 function renderPartsPicker(){
   const box = document.getElementById('partsPickerRows');
   if(!box) return;
-  box.innerHTML = currentRepairParts.map((row,i)=>`
+  box.innerHTML = currentRepairParts.map((row,i)=>{
+    const p = row.partId ? getPart(row.partId) : null;
+    return `
     <div class="parts-picker-row">
-      <select onchange="currentRepairParts[${i}].partId=this.value">${partOptionsFor(row.partId)}</select>
+      <input list="partsList_${i}" value="${esc(p?partComboLabel(p):'')}" placeholder="搜尋零件" oninput="handlePartRowInput(${i}, this.value)" autocomplete="off">
+      <datalist id="partsList_${i}">${DB.parts.map(pp=>`<option value="${esc(partComboLabel(pp))}">`).join('')}</datalist>
       <input type="number" min="1" value="${row.qty}" oninput="currentRepairParts[${i}].qty=this.value">
       <div class="parts-picker-remove" onclick="currentRepairParts.splice(${i},1); renderPartsPicker();">✕</div>
     </div>
-  `).join('') || `<div style="font-size:12.5px;color:var(--text-faint)">尚未加入零件，點下方按鈕新增</div>`;
+  `;
+  }).join('') || `<div style="font-size:12.5px;color:var(--text-faint)">尚未加入零件，點下方按鈕新增</div>`;
+}
+function handlePartRowInput(i, val){
+  const match = DB.parts.find(p=>partComboLabel(p)===val);
+  currentRepairParts[i].partId = match ? match.id : '';
 }
 function addPartRow(){ currentRepairParts.push({partId:'', qty:1}); renderPartsPicker(); }
 
@@ -1145,7 +1173,8 @@ function openRepairForm(id, presetMachineId){
         <div class="field"><label>狀態</label><select id="f_status">${['待處理','處理中','已完成','已取消'].map(s=>`<option ${r?.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
       </div>
       <div class="field"><label>問題描述 <span class="req">*</span></label>
-        <select id="f_issue" onchange="handleIssueSelectChange(this)">${issueOptionsHTML(r?.issue||'')}</select>
+        <input id="f_issue" list="f_issue_list" value="${esc(r?.issue||'')}" placeholder="搜尋或輸入新問題" autocomplete="off">
+        <datalist id="f_issue_list">${DB.issueTypes.map(t=>`<option value="${esc(t.name)}">`).join('')}</datalist>
       </div>
       <div class="field"><label>處理方式</label><textarea id="f_action" placeholder="例如：更換油封、清洗油路">${esc(r?.action||'')}</textarea></div>
       <div class="field">
@@ -1165,10 +1194,10 @@ function openRepairForm(id, presetMachineId){
 }
 async function saveRepair(id){
   const machineId = repairFormMachineId, date = val('f_date');
-  const issueVal = val('f_issue');
+  const issueVal = val('f_issue').trim();
   if(!machineId){ showToast('找不到關聯機台，請從機台頁面新增維修紀錄', true); return; }
-  if(issueVal === '__new__'){ showToast('請先完成新增問題，或選擇一個問題描述', true); return; }
   if(!date || !issueVal){ showToast('請填寫維修日期與問題描述', true); return; }
+  if(!DB.issueTypes.some(t=>t.name===issueVal)){ DB.issueTypes.push({id:uid(), name:issueVal}); }
   const partsUsed = currentRepairParts.filter(p=>p.partId && Number(p.qty)>0).map(p=>({partId:p.partId, qty:Number(p.qty)}));
   const data = { machineId, date, issue:issueVal, action:val('f_action').trim(), partsUsed,
     cost: val('f_cost') ? Number(val('f_cost')) : null, technician: val('f_technician').trim(), status: val('f_status') };
@@ -1195,123 +1224,178 @@ async function deleteRepair(id){
 }
 
 /* ============================= MAINTENANCE ============================= */
+let maintenanceCustomerQuery = '';
+let currentMaintenanceCustomer = null;
+let currentMaintenanceMachine = null;
+let maintenanceMachineQuery = '';
+
+/* ---- Level 1: customer list ---- */
 function renderMaintenance(){
-  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" onclick="openMaintenanceForm()">${ICONS.plus}新增保養排程</button>`;
+  document.getElementById('topbarActions').innerHTML = '';
   const c = document.getElementById('content');
-  const list = [...DB.maintenance].sort((a,b)=>{
-    const da=nextDue(a), db_=nextDue(b);
-    if(!da) return 1; if(!db_) return -1;
-    return da.localeCompare(db_);
-  });
-  const overdue = list.filter(x=>cycleStatus(x).state==='red').length;
-  const soon = list.filter(x=>cycleStatus(x).state==='amber').length;
+  const { groups, names: customers } = groupMachinesByCustomer(maintenanceCustomerQuery);
+
   c.innerHTML = `
-    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat-card blue"><div class="bar"></div><div class="label">保養排程總數</div><div class="value">${list.length}</div></div>
-      <div class="stat-card amber"><div class="bar"></div><div class="label">14 天內到期</div><div class="value">${soon}</div></div>
-      <div class="stat-card red"><div class="bar"></div><div class="label">已逾期</div><div class="value">${overdue}</div></div>
+    <div class="toolbar">
+      <div class="search-box">${ICONS.search}<input id="mtcSearch" placeholder="搜尋客戶名稱" value="${esc(maintenanceCustomerQuery)}"></div>
     </div>
     <div class="card">
+      ${customers.length ? `
+      <table><thead><tr><th>客戶名稱</th><th>機台數量</th><th style="width:96px"></th></tr></thead>
+      <tbody>${customers.map(name=>{
+        const list = groups[name];
+        return `<tr class="mtc-row" data-customer="${esc(name)}" style="cursor:pointer">
+          <td class="cell-strong">${esc(name)}</td>
+          <td class="mono">${list.length} 台</td>
+          <td><div class="row-actions"><button class="icon-btn mtc-view-btn" data-customer="${esc(name)}" title="查看車輛">${ICONS.eye}</button></div></td>
+        </tr>`;
+      }).join('')}</tbody></table>` : `<div class="empty">${ICONS.truck}<div class="msg">找不到符合條件的客戶</div><div class="hint">試試調整搜尋條件</div></div>`}
+    </div>
+  `;
+  document.getElementById('mtcSearch').oninput = e=>{ maintenanceCustomerQuery=e.target.value; renderMaintenance(); preserveFocus('mtcSearch'); };
+  c.querySelectorAll('.mtc-row').forEach(row=> row.addEventListener('click', ()=> openMaintenanceCustomer(row.dataset.customer)));
+  c.querySelectorAll('.mtc-view-btn').forEach(btn=> btn.addEventListener('click', e=>{ e.stopPropagation(); openMaintenanceCustomer(btn.dataset.customer); }));
+}
+
+/* ---- Level 2: this customer's machines ---- */
+function openMaintenanceCustomer(name){
+  currentMaintenanceCustomer = name;
+  currentView = 'maintenance-customer';
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('pageTitle').textContent = name;
+  document.getElementById('pageSub').textContent = '選擇一台機台以查看保養排程';
+  renderMaintenanceCustomer();
+}
+function renderMaintenanceCustomer(){
+  const name = currentMaintenanceCustomer;
+  const list = DB.machines.filter(m=>((m.customer||'').trim() || '（未填寫客戶）')===name);
+  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-ghost" onclick="switchView('maintenance')">${ICONS.back}返回客戶列表</button>`;
+  const c = document.getElementById('content');
+  c.innerHTML = `
+    <div class="card">
       ${list.length ? `
-      <table><thead><tr><th>機台 / 客戶</th><th>保養類型</th><th>週期</th><th>上次保養</th><th style="width:200px">下次保養狀態</th><th style="width:120px"></th></tr></thead>
-      <tbody>${list.map(item=>{
-        const m = getMachine(item.machineId);
-        return `<tr>
-          <td class="cell-strong">${esc(m?m.machineNo:'—')}<div class="cell-sub">${esc(m?m.customer:'')}</div></td>
-          <td>${esc(item.type)}</td><td class="mono">${item.cycleDays} 天</td><td class="mono">${esc(item.lastDate||'—')}</td>
+      <table><thead><tr><th>機號</th><th>交車日期</th><th>廠牌 / 型號</th><th>保養排程數</th><th style="width:200px">最近保養狀態</th><th style="width:96px"></th></tr></thead>
+      <tbody>${list.map(m=>{
+        const items = DB.maintenance.filter(x=>x.machineId===m.id);
+        const worst = items.map(cycleStatus).sort((a,b)=>{
+          const order = {red:0, amber:1, green:2, gray:3};
+          return order[a.state]-order[b.state];
+        })[0];
+        return `<tr class="mtm-row" data-id="${m.id}" style="cursor:pointer">
+          <td class="mono cell-strong">${esc(m.machineNo||'—')}</td>
+          <td class="mono">${esc(m.deliveryDate||'—')}</td>
+          <td>${esc(m.brand)} <span style="color:var(--text-faint)">${esc(m.model)}</span></td>
+          <td class="mono">${items.length} 筆</td>
+          <td>${worst? `<span class="badge ${worst.state}">${worst.label}</span>` : `<span class="badge gray">尚未設定</span>`}</td>
+          <td><div class="row-actions"><button class="icon-btn mtm-view-btn" data-id="${m.id}" title="查看保養排程">${ICONS.eye}</button></div></td>
+        </tr>`;
+      }).join('')}</tbody></table>` : `<div class="empty">${ICONS.truck}<div class="msg">這位客戶目前沒有堆高機資料</div></div>`}
+    </div>
+  `;
+  c.querySelectorAll('.mtm-row').forEach(row=> row.addEventListener('click', ()=> openMaintenanceMachine(row.dataset.id)));
+  c.querySelectorAll('.mtm-view-btn').forEach(btn=> btn.addEventListener('click', e=>{ e.stopPropagation(); openMaintenanceMachine(btn.dataset.id); }));
+}
+
+/* ---- Level 3: maintenance schedules for one machine ---- */
+function openMaintenanceMachine(machineId){
+  currentMaintenanceMachine = machineId;
+  currentView = 'maintenance-machine';
+  const m = getMachine(machineId);
+  document.getElementById('pageTitle').textContent = m ? (m.machineNo||'—') : '保養排程';
+  document.getElementById('pageSub').textContent = m ? `${esc(m.brand)} ${esc(m.model)} · ${esc(m.customer)}` : '';
+  renderMaintenanceMachine();
+}
+function renderMaintenanceMachine(){
+  const m = getMachine(currentMaintenanceMachine);
+  const actions = document.getElementById('topbarActions');
+  const c = document.getElementById('content');
+  if(!m){ actions.innerHTML=''; c.innerHTML = `<div class="empty">${ICONS.alert}<div class="msg">找不到這台機台</div></div>`; return; }
+  actions.innerHTML = `
+    <button class="btn btn-ghost" onclick="openMaintenanceCustomer(currentMaintenanceCustomer)">${ICONS.back}返回車輛列表</button>
+    <button class="btn btn-primary" onclick="openMaintenanceForm(null, currentMaintenanceMachine)">${ICONS.plus}新增保養排程</button>
+  `;
+  const list = DB.maintenance.filter(x=>x.machineId===m.id);
+  c.innerHTML = `
+    <div class="card">
+      ${list.length ? `
+      <table><thead><tr><th>保養類型</th><th>保養內容 / 備註</th><th>週期</th><th>上次保養</th><th style="width:200px">下次保養狀態</th><th style="width:120px"></th></tr></thead>
+      <tbody>${list.map(item=>`
+        <tr>
+          <td class="cell-strong">${esc(item.type)}</td>
+          <td>${esc(item.notes||'—')}</td>
+          <td class="mono">${item.cycleDays} 天</td>
+          <td class="mono">${esc(item.lastDate||'—')}</td>
           <td>${cycleGauge(item)}</td>
           <td><div class="row-actions">
             <button class="icon-btn" title="標記今日已保養" onclick="markMaintained('${item.id}')">${ICONS.check}</button>
             <button class="icon-btn" title="編輯" onclick="openMaintenanceForm('${item.id}')">${ICONS.edit}</button>
             <button class="icon-btn" title="刪除" onclick="deleteMaintenance('${item.id}')">${ICONS.trash}</button>
           </div></td>
-        </tr>`;
-      }).join('')}</tbody></table>` : `<div class="empty">${ICONS.clock}<div class="msg">尚未設定任何保養排程</div><div class="hint">為每台堆高機建立保養週期，系統會自動提醒到期日</div></div>`}
+        </tr>`).join('')}</tbody></table>` : `<div class="empty">${ICONS.clock}<div class="msg">這台機台尚未設定保養排程</div><div class="hint">點右上角新增第一筆保養排程</div></div>`}
     </div>
   `;
 }
+function rerenderMaintenanceViews(){
+  if(currentView==='maintenance-machine') renderMaintenanceMachine();
+  else if(currentView==='machine-detail') renderMachineDetail();
+  else if(currentView==='maintenance-customer') renderMaintenanceCustomer();
+  else render();
+}
+
+let maintenanceFormMachineId = null;
 function openMaintenanceForm(id, presetMachineId){
   const item = id ? DB.maintenance.find(x=>x.id===id) : null;
+  const machineId = item ? item.machineId : presetMachineId;
+  const m = machineId ? getMachine(machineId) : null;
+  maintenanceFormMachineId = machineId || null;
   document.getElementById('modalBox').innerHTML = `
     <div class="modal-head"><h2>${item?'編輯保養排程':'新增保養排程'}</h2><div class="modal-close" onclick="closeModal()">✕</div></div>
     <div class="modal-body">
-      <div class="field"><label>關聯機台 <span class="req">*</span></label><select id="f_machineId">${machineOptions(item?item.machineId:presetMachineId)}</select></div>
+      <div class="field"><label>關聯機台</label>
+        <div style="padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--gray-soft);font-size:13.5px;font-weight:700">
+          ${m ? `${esc(m.machineNo||'—')} <span style="color:var(--text-muted);font-weight:500">· ${esc(m.brand)} ${esc(m.model)} · ${esc(m.customer)}</span>` : '（找不到機台，請從機台頁面新增保養排程）'}
+        </div>
+      </div>
       <div class="form-row">
-        <div class="field"><label>保養類型</label><select id="f_type">${['定期保養','季保養','年度大保養','其他'].map(t=>`<option ${item?.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+        <div class="field"><label>保養類型</label>
+          <input id="f_type" list="f_type_list" value="${esc(item?.type||'定期保養')}" placeholder="搜尋或輸入保養類型" autocomplete="off">
+          <datalist id="f_type_list">${['定期保養','季保養','年度大保養','其他'].map(t=>`<option value="${t}">`).join('')}</datalist>
+        </div>
         <div class="field"><label>保養週期 (天) <span class="req">*</span></label><input type="number" id="f_cycleDays" value="${item?.cycleDays||90}" min="1"></div>
       </div>
       <div class="field"><label>上次保養日期 <span class="req">*</span></label><input type="date" id="f_lastDate" value="${item?.lastDate||todayISO()}"></div>
-      <div class="field"><label>備註</label><textarea id="f_notes" placeholder="保養內容、注意事項等">${esc(item?.notes||'')}</textarea></div>
+      <div class="field"><label>保養內容 / 備註</label><textarea id="f_notes" placeholder="例如：更換機油、檢查煞車、補充油壓油">${esc(item?.notes||'')}</textarea></div>
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveMaintenance('${id||''}')">${ICONS.check}儲存</button></div>
   `;
   openModal();
 }
 async function saveMaintenance(id){
-  const machineId = val('f_machineId'), lastDate = val('f_lastDate'), cycleDays = Number(val('f_cycleDays'));
-  if(!machineId){ showToast('請選擇關聯機台', true); return; }
+  const machineId = maintenanceFormMachineId;
+  const lastDate = val('f_lastDate'), cycleDays = Number(val('f_cycleDays'));
+  if(!machineId){ showToast('找不到關聯機台，請從機台頁面新增保養排程', true); return; }
   if(!lastDate || !cycleDays){ showToast('請填寫上次保養日期與週期天數', true); return; }
-  const data = { machineId, lastDate, cycleDays, type: val('f_type'), notes: val('f_notes').trim() };
+  const data = { machineId, lastDate, cycleDays, type: val('f_type').trim(), notes: val('f_notes').trim() };
   if(id){ Object.assign(DB.maintenance.find(x=>x.id===id), data); showToast('已更新保養排程'); }
   else{ data.id=uid(); DB.maintenance.unshift(data); showToast('已新增保養排程'); }
   await saveData(); closeModal();
-  currentView==='machine-detail' ? renderMachineDetail() : render();
+  rerenderMaintenanceViews();
 }
 async function markMaintained(id){
   const item = DB.maintenance.find(x=>x.id===id);
   if(!item) return;
   item.lastDate = todayISO();
-  await saveData(); showToast('已標記為今日完成保養，下次到期日已更新'); render();
+  await saveData(); showToast('已標記為今日完成保養，下次到期日已更新');
+  rerenderMaintenanceViews();
 }
 async function deleteMaintenance(id){
   if(!confirm('確定要刪除這個保養排程嗎？')) return;
   DB.maintenance = DB.maintenance.filter(x=>x.id!==id);
   await saveData(); showToast('已刪除');
-  currentView==='machine-detail' ? renderMachineDetail() : render();
+  rerenderMaintenanceViews();
 }
 
 /* ============================= BRANDS ============================= */
-function brandOptionsHTML(selectedName){
-  const sorted = [...DB.brands].sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant'));
-  return `<option value="">請選擇廠牌</option>`
-    + sorted.map(b=>`<option value="${esc(b.name)}" ${b.name===selectedName?'selected':''}>${esc(b.name)}</option>`).join('')
-    + `<option value="__new__">${sorted.length? '＋ 新增廠牌…' : '目前尚無廠牌，點此新增…'}</option>`;
-}
-function handleBrandSelectChange(selectEl){
-  if(selectEl.value !== '__new__') return;
-  const name = prompt('請輸入新的廠牌名稱：');
-  if(name && name.trim()){
-    const trimmed = name.trim();
-    const dup = DB.brands.find(b=>b.name===trimmed);
-    const brand = dup || {id:uid(), name:trimmed};
-    if(!dup){ DB.brands.push(brand); saveData(); }
-    selectEl.innerHTML = brandOptionsHTML(brand.name);
-    showToast(dup? '已選擇既有廠牌' : '已新增廠牌');
-  }else{
-    selectEl.value = '';
-  }
-}
-/* ---- 問題描述下拉選項（同廠牌邏輯，可直接新增問題） ---- */
-function issueOptionsHTML(selectedName){
-  const sorted = [...DB.issueTypes].sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant'));
-  return `<option value="">請選擇問題描述</option>`
-    + sorted.map(t=>`<option value="${esc(t.name)}" ${t.name===selectedName?'selected':''}>${esc(t.name)}</option>`).join('')
-    + `<option value="__new__">${sorted.length? '＋ 新增問題…' : '目前尚無紀錄，點此新增…'}</option>`;
-}
-function handleIssueSelectChange(selectEl){
-  if(selectEl.value !== '__new__') return;
-  const name = prompt('請輸入新的問題描述：');
-  if(name && name.trim()){
-    const trimmed = name.trim();
-    const dup = DB.issueTypes.find(t=>t.name===trimmed);
-    const issue = dup || {id:uid(), name:trimmed};
-    if(!dup){ DB.issueTypes.push(issue); saveData(); }
-    selectEl.innerHTML = issueOptionsHTML(issue.name);
-    showToast(dup? '已選擇既有問題' : '已新增問題');
-  }else{
-    selectEl.value = '';
-  }
-}
 let brandFilters = { q:'' };
 function renderBrands(){
   document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" onclick="openBrandForm()">${ICONS.plus}新增廠牌</button>`;
@@ -1401,11 +1485,9 @@ function renderParts(){
   `;
   document.getElementById('pSearch').oninput = e=>{ partsFilters.q=e.target.value; renderParts(); preserveFocus('pSearch'); };
 }
-function vendorOptions(selectedId){
-  return `<option value="">未指定</option>` + DB.vendors.map(v=>`<option value="${v.id}" ${v.id===selectedId?'selected':''}>${esc(v.name)}</option>`).join('');
-}
 function openPartForm(id){
   const p = id ? getPart(id) : null;
+  const currentVendor = p?.vendorId ? getVendor(p.vendorId) : null;
   document.getElementById('modalBox').innerHTML = `
     <div class="modal-head"><h2>${p?'編輯零件':'新增零件'}</h2><div class="modal-close" onclick="closeModal()">✕</div></div>
     <div class="modal-body">
@@ -1415,7 +1497,10 @@ function openPartForm(id){
       </div>
       <div class="form-row">
         <div class="field"><label>分類</label><input id="f_category" value="${esc(p?.category||'')}" placeholder="例如 油壓系統"></div>
-        <div class="field"><label>供應商</label><select id="f_vendorId">${vendorOptions(p?.vendorId)}</select></div>
+        <div class="field"><label>供應商</label>
+          <input id="f_vendorName" list="f_vendorName_list" value="${esc(currentVendor?currentVendor.name:'')}" placeholder="搜尋供應商，留空表示未指定" autocomplete="off">
+          <datalist id="f_vendorName_list">${DB.vendors.map(v=>`<option value="${esc(v.name)}">`).join('')}</datalist>
+        </div>
       </div>
       <div class="form-row">
         <div class="field"><label>單價 (NT$)</label><input type="number" id="f_unitPrice" value="${p?.unitPrice||''}" placeholder="0"></div>
@@ -1434,7 +1519,9 @@ function openPartForm(id){
 async function savePart(id){
   const name = val('f_name').trim();
   if(!name){ showToast('請填寫零件名稱', true); return; }
-  const data = { name, partNo:val('f_partNo').trim(), category:val('f_category').trim(), vendorId:val('f_vendorId')||null,
+  const vendorNameVal = val('f_vendorName').trim();
+  const matchedVendor = vendorNameVal ? DB.vendors.find(v=>v.name===vendorNameVal) : null;
+  const data = { name, partNo:val('f_partNo').trim(), category:val('f_category').trim(), vendorId: matchedVendor?matchedVendor.id:null,
     unitPrice: val('f_unitPrice')?Number(val('f_unitPrice')):0, unit:val('f_unit').trim(),
     stock: Number(val('f_stock'))||0, minStock: Number(val('f_minStock'))||0, notes:val('f_notes').trim() };
   if(id){ Object.assign(getPart(id), data); showToast('已更新零件資料'); }
@@ -1475,7 +1562,10 @@ function openVendorForm(id){
     <div class="modal-body">
       <div class="form-row">
         <div class="field"><label>廠商名稱 <span class="req">*</span></label><input id="f_name" value="${esc(v?.name||'')}" placeholder="例如 永盛零件行"></div>
-        <div class="field"><label>類型</label><select id="f_category">${['零件供應商','外包維修廠','其他'].map(t=>`<option ${v?.category===t?'selected':''}>${t}</option>`).join('')}</select></div>
+        <div class="field"><label>類型</label>
+          <input id="f_category" list="f_category_list" value="${esc(v?.category||'')}" placeholder="搜尋或輸入類型" autocomplete="off">
+          <datalist id="f_category_list">${['零件供應商','外包維修廠','其他'].map(t=>`<option value="${t}">`).join('')}</datalist>
+        </div>
       </div>
       <div class="form-row">
         <div class="field"><label>聯絡人</label><input id="f_contact" value="${esc(v?.contact||'')}"></div>
