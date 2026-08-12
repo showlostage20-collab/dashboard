@@ -1380,16 +1380,17 @@ function renderMaintenanceCustomer(){
   c.innerHTML = `
     <div class="card">
       ${list.length ? `
-      <table><thead><tr><th>機號</th><th>交車日期</th><th>廠牌 / 型號</th><th>保養排程數</th><th style="width:200px">最近保養狀態</th><th style="width:96px"></th></tr></thead>
+      <table><thead><tr><th>機號</th><th>上次保養日期</th><th>廠牌 / 型號</th><th>保養排程數</th><th style="width:200px">最近保養狀態</th><th style="width:96px"></th></tr></thead>
       <tbody>${list.map(m=>{
         const items = DB.maintenance.filter(x=>x.machineId===m.id);
         const worst = items.map(cycleStatus).sort((a,b)=>{
           const order = {red:0, amber:1, green:2, gray:3};
           return order[a.state]-order[b.state];
         })[0];
+        const lastMaintained = items.map(x=>x.lastDate).filter(Boolean).sort().slice(-1)[0];
         return `<tr class="mtm-row" data-id="${m.id}" style="cursor:pointer">
           <td class="mono cell-strong">${esc(m.machineNo||'—')}</td>
-          <td class="mono">${esc(m.deliveryDate||'—')}</td>
+          <td class="mono">${esc(lastMaintained||'—')}</td>
           <td>${esc(m.brand)} <span style="color:var(--text-faint)">${esc(m.model)}</span></td>
           <td class="mono">${items.length} 筆</td>
           <td>${worst? `<span class="badge ${worst.state}">${worst.label}</span>` : `<span class="badge gray">尚未設定</span>`}</td>
