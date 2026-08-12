@@ -159,6 +159,10 @@
   .btn-ghost:hover{background:var(--gray-soft);}
   .btn-danger{background:var(--red-soft);color:var(--red);}
   .btn-danger:hover{background:#f9d5d5;}
+  .btn-solid-green{background:var(--green);color:#fff;}
+  .btn-solid-green:hover{background:#128058;}
+  .btn-solid-red{background:var(--red);color:#fff;}
+  .btn-solid-red:hover{background:#c53030;}
   .btn-sm{padding:6px 10px;font-size:12px;border-radius:6px;}
   .btn svg{width:14px;height:14px;}
 
@@ -449,7 +453,7 @@ async function upsertRows(table, camelRows){
   return error ? (error.message || '未知錯誤') : null;
 }
 
-let DB = { machines:[], repairs:[], maintenance:[], parts:[], vendors:[], brands:[], issueTypes:[], todos:[], settings:{} };
+let DB = { machines:[], repairs:[], maintenance:[], parts:[], vendors:[], brands:[], issueTypes:[], todos:[], optionLists:[], settings:{} };
 let currentView = 'dashboard';
 let currentDetailMachine = null;
 let sidebarCollapsed = false;
@@ -460,7 +464,7 @@ const daysBetween = (a,b) => Math.round((new Date(b) - new Date(a)) / 86400000);
 
 async function loadData(){
   try{
-    const tables = ['machines','repairs','maintenance','vendors','parts','brands','issue_types','todos'];
+    const tables = ['machines','repairs','maintenance','vendors','parts','brands','issue_types','todos','option_lists'];
     const results = await Promise.all(tables.map(t=> sb.from(t).select('*')));
     results.forEach((r,i)=>{ if(r.error) throw r.error; });
     DB.machines = results[0].data.map(toCamelRow);
@@ -471,6 +475,7 @@ async function loadData(){
     DB.brands = results[5].data.map(toCamelRow);
     DB.issueTypes = results[6].data.map(toCamelRow);
     DB.todos = results[7].data.map(toCamelRow);
+    DB.optionLists = results[8].data.map(toCamelRow);
     const settingsRes = await sb.from('settings').select('*').eq('id','main').maybeSingle();
     if(settingsRes.error) throw settingsRes.error;
     DB.settings = settingsRes.data ? toCamelRow(settingsRes.data) : {};
@@ -486,6 +491,7 @@ async function loadData(){
   DB.issueTypes = DB.issueTypes || [];
   DB.settings = DB.settings || {};
   DB.todos = DB.todos || [];
+  DB.optionLists = DB.optionLists || [];
   /* migrate old schema (資產編號/車牌/狀態 → 交車日期/機號/引擎號碼，取消手動狀態) */
   DB.machines.forEach(m=>{
     if(m.machineNo===undefined) m.machineNo = m.plate || m.assetNo || '';
@@ -511,6 +517,21 @@ async function loadData(){
       seededNew = true;
     }
   });
+  /* 首次使用時，把原本固定寫死的動力類型／保養類型／廠商類型清單種進「系統管理」可編輯清單 */
+  const defaultSeeds = {
+    power_type: ['電動','柴油','汽油','其他'],
+    maintenance_type: ['定期保養','季保養','年度大保養','其他'],
+    vendor_category: ['零件供應商','外包維修廠','其他'],
+  };
+  Object.entries(defaultSeeds).forEach(([listKey, values])=>{
+    const has = DB.optionLists.some(x=>x.listKey===listKey);
+    if(!has){
+      values.forEach(v=>{
+        DB.optionLists.push({id:uid(), listKey, name:v});
+      });
+      seededNew = true;
+    }
+  });
   if(seededNew) await saveData();
 }
 async function saveData(){
@@ -524,6 +545,7 @@ async function saveData(){
     if(DB.brands.length) ops.push(sb.from('brands').upsert(DB.brands.map(toSnakeRow)));
     if(DB.issueTypes.length) ops.push(sb.from('issue_types').upsert(DB.issueTypes.map(toSnakeRow)));
     if(DB.todos.length) ops.push(sb.from('todos').upsert(DB.todos.map(toSnakeRow)));
+    if(DB.optionLists.length) ops.push(sb.from('option_lists').upsert(DB.optionLists.map(toSnakeRow)));
     if(DB.settings && Object.keys(DB.settings).length) ops.push(sb.from('settings').upsert(toSnakeRow({id:'main', ...DB.settings})));
     const results = await Promise.all(ops);
     const failed = results.find(r=>r.error);
@@ -543,6 +565,9 @@ function showToast(msg, isErr){
 function getMachine(id){ return DB.machines.find(m=>m.id===id); }
 function getPart(id){ return DB.parts.find(p=>p.id===id); }
 function getVendor(id){ return DB.vendors.find(v=>v.id===id); }
+function optionListValues(listKey){ return DB.optionLists.filter(x=>x.listKey===listKey && x.visible!==false).map(x=>x.name).sort((a,b)=>a.localeCompare(b,'zh-Hant')); }
+function visibleBrandNames(){ return DB.brands.filter(b=>b.visible!==false).map(b=>b.name).sort((a,b)=>a.localeCompare(b,'zh-Hant')); }
+function visibleIssueNames(){ return DB.issueTypes.filter(t=>t.visible!==false).map(t=>t.name).sort((a,b)=>a.localeCompare(b,'zh-Hant')); }
 function esc(s){ return (s??'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function val(id){ return document.getElementById(id).value; }
 function money(n){ return n? 'NT$'+Number(n).toLocaleString() : '—'; }
@@ -641,7 +666,7 @@ const NAV = [
       const n = DB.maintenance.filter(x=>cycleStatus(x).state==='red' || cycleStatus(x).state==='amber').length;
       return n>0? n : null;
     }},
-  {view:'brands', label:'廠牌管理', icon:ICONS.tag},
+  {view:'systemLists', label:'系統管理', icon:ICONS.tag},
   {section:'資源管理'},
   {view:'parts', label:'零件管理', icon:ICONS.box, badgeFn: ()=>{
       const n = DB.parts.filter(p=>Number(p.stock) <= Number(p.minStock||0)).length;
@@ -701,7 +726,7 @@ const TITLES = {
   machines:['堆高機管理','建立與管理客戶的堆高機資產資料'],
   repairs:['維修紀錄','選擇客戶查看機台，再查看或新增維修紀錄'],
   maintenance:['保養管理','選擇客戶查看機台，再查看或新增保養排程'],
-  brands:['廠牌管理','管理堆高機廠牌清單，新增堆高機時可直接下拉選擇'],
+  systemLists:['系統管理','管理系統中各種下拉選單的選項內容'],
   parts:['零件管理','管理零件庫存、價格與供應商'],
   vendors:['維修廠商','管理配合的零件供應商與外包廠商'],
   reports:['統計報表','掌握維修成本、機台狀態與客戶趨勢'],
@@ -718,7 +743,7 @@ function render(){
   document.getElementById('topbarActions').innerHTML = '';
   const fns = {
     dashboard:renderDashboard, machines:renderMachines, repairs:renderRepairs,
-    maintenance:renderMaintenance, brands:renderBrands, parts:renderParts, vendors:renderVendors,
+    maintenance:renderMaintenance, systemLists:renderSystemLists, parts:renderParts, vendors:renderVendors,
     reports:renderReports, settings:renderSettings,
   };
   (fns[currentView]||renderDashboard)();
@@ -745,7 +770,7 @@ function renderTodoSection(){
         <input id="todoCustomer" placeholder="客戶名稱" list="todoCustomerList" autocomplete="off">
         <datalist id="todoCustomerList">${customerNames.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
         <input id="todoIssue" placeholder="問題描述" list="todoIssueList" autocomplete="off">
-        <datalist id="todoIssueList">${DB.issueTypes.map(t=>`<option value="${esc(t.name)}">`).join('')}</datalist>
+        <datalist id="todoIssueList">${visibleIssueNames().map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
         <button class="btn btn-primary btn-sm" id="todoAddBtn">${ICONS.plus}新增待辦</button>
       </div>
       <div id="todoList">
@@ -981,13 +1006,13 @@ function openMachineForm(id, presetCustomer){
         <div class="field"><label>交車日期</label><input type="date" id="f_deliveryDate" value="${esc(m?.deliveryDate||'')}"></div>
         <div class="field"><label>動力類型</label>
           <input id="f_powerType" list="f_powerType_list" value="${esc(m?.powerType||'')}" placeholder="搜尋或選擇動力類型" autocomplete="off">
-          <datalist id="f_powerType_list">${['電動','柴油','汽油','其他'].map(p=>`<option value="${p}">`).join('')}</datalist>
+          <datalist id="f_powerType_list">${optionListValues('power_type').map(p=>`<option value="${esc(p)}">`).join('')}</datalist>
         </div>
       </div>
       <div class="form-row">
         <div class="field"><label>廠牌</label>
           <input id="f_brand" list="f_brand_list" value="${esc(m?.brand||'')}" placeholder="搜尋或輸入新廠牌" autocomplete="off">
-          <datalist id="f_brand_list">${DB.brands.map(b=>`<option value="${esc(b.name)}">`).join('')}</datalist>
+          <datalist id="f_brand_list">${visibleBrandNames().map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
         </div>
         <div class="field"><label>型號</label><input id="f_model" value="${esc(m?.model||'')}" placeholder="例如 8FD30"></div>
       </div>
@@ -1256,7 +1281,7 @@ function openRepairForm(id, presetMachineId){
       </div>
       <div class="field"><label>問題描述 <span class="req">*</span></label>
         <input id="f_issue" list="f_issue_list" value="${esc(r?.issue||'')}" placeholder="搜尋或輸入新問題" autocomplete="off">
-        <datalist id="f_issue_list">${DB.issueTypes.map(t=>`<option value="${esc(t.name)}">`).join('')}</datalist>
+        <datalist id="f_issue_list">${visibleIssueNames().map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
       </div>
       <div class="field"><label>處理方式</label><textarea id="f_action" placeholder="例如：更換油封、清洗油路">${esc(r?.action||'')}</textarea></div>
       <div class="field">
@@ -1466,7 +1491,7 @@ function openMaintenanceForm(id, presetMachineId){
       <div class="form-row">
         <div class="field"><label>保養類型</label>
           <input id="f_type" list="f_type_list" value="${esc(item?.type||'定期保養')}" placeholder="搜尋或輸入保養類型" autocomplete="off">
-          <datalist id="f_type_list">${['定期保養','季保養','年度大保養','其他'].map(t=>`<option value="${t}">`).join('')}</datalist>
+          <datalist id="f_type_list">${optionListValues('maintenance_type').map(t=>`<option value="${esc(t)}">`).join('')}</datalist>
         </div>
         <div class="field"><label>保養週期 (天) <span class="req">*</span></label><input type="number" id="f_cycleDays" value="${item?.cycleDays||90}" min="1"></div>
       </div>
@@ -1510,70 +1535,153 @@ async function deleteMaintenance(id){
   rerenderMaintenanceViews();
 }
 
-/* ============================= BRANDS ============================= */
-let brandFilters = { q:'' };
-function renderBrands(){
-  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" onclick="openBrandForm()">${ICONS.plus}新增廠牌</button>`;
+/* ============================= SYSTEM LISTS (統一管理各種下拉選單) ============================= */
+const SYSTEM_LISTS = [
+  { key:'brand', label:'廠牌', table:'brands', extra:{},
+    getItems:()=>DB.brands,
+    addItem:(row)=>DB.brands.push(row),
+    removeItem:(id)=>{ DB.brands = DB.brands.filter(x=>x.id!==id); },
+    onRename: async (oldName, newName)=>{
+      const affected = DB.machines.filter(m=>m.brand===oldName);
+      if(!affected.length) return '';
+      affected.forEach(m=>m.brand=newName);
+      const err = await upsertRows('machines', affected);
+      return err ? '，但同步機台資料失敗：'+err : '';
+    }
+  },
+  { key:'issueType', label:'問題描述', table:'issue_types', extra:{},
+    getItems:()=>DB.issueTypes,
+    addItem:(row)=>DB.issueTypes.push(row),
+    removeItem:(id)=>{ DB.issueTypes = DB.issueTypes.filter(x=>x.id!==id); },
+    onRename: async (oldName, newName)=>{
+      let extraMsg = '';
+      const affectedRepairs = DB.repairs.filter(r=>r.issue===oldName);
+      if(affectedRepairs.length){
+        affectedRepairs.forEach(r=>r.issue=newName);
+        const err = await upsertRows('repairs', affectedRepairs);
+        if(err) extraMsg += '，但同步維修紀錄失敗：'+err;
+      }
+      const affectedTodos = DB.todos.filter(t=>t.issue===oldName);
+      if(affectedTodos.length){
+        affectedTodos.forEach(t=>t.issue=newName);
+        const err = await upsertRows('todos', affectedTodos);
+        if(err) extraMsg += '，但同步待辦事項失敗：'+err;
+      }
+      return extraMsg;
+    }
+  },
+  { key:'powerType', label:'動力類型', table:'option_lists', extra:{listKey:'power_type'},
+    getItems:()=>DB.optionLists.filter(x=>x.listKey==='power_type'),
+    addItem:(row)=>DB.optionLists.push(row),
+    removeItem:(id)=>{ DB.optionLists = DB.optionLists.filter(x=>x.id!==id); },
+  },
+  { key:'maintenanceType', label:'保養類型', table:'option_lists', extra:{listKey:'maintenance_type'},
+    getItems:()=>DB.optionLists.filter(x=>x.listKey==='maintenance_type'),
+    addItem:(row)=>DB.optionLists.push(row),
+    removeItem:(id)=>{ DB.optionLists = DB.optionLists.filter(x=>x.id!==id); },
+  },
+  { key:'vendorCategory', label:'廠商類型', table:'option_lists', extra:{listKey:'vendor_category'},
+    getItems:()=>DB.optionLists.filter(x=>x.listKey==='vendor_category'),
+    addItem:(row)=>DB.optionLists.push(row),
+    removeItem:(id)=>{ DB.optionLists = DB.optionLists.filter(x=>x.id!==id); },
+  },
+];
+let currentSystemListKey = '';
+function renderSystemLists(){
+  document.getElementById('topbarActions').innerHTML = '';
   const c = document.getElementById('content');
-  const q = brandFilters.q.trim().toLowerCase();
-  const list = DB.brands.filter(b=> !q || b.name.toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant'));
+  const cfg = SYSTEM_LISTS.find(x=>x.key===currentSystemListKey);
   c.innerHTML = `
-    <div class="toolbar"><div class="search-box">${ICONS.search}<input id="bSearch" placeholder="搜尋廠牌名稱" value="${esc(brandFilters.q)}"></div></div>
+    <div class="settings-section" style="margin-bottom:22px">
+      <h3>編輯下拉選單</h3>
+      <div class="desc">選擇要編輯的下拉選單，新增、修改或刪除選項內容，全系統會立即套用最新選項。</div>
+      <div class="field" style="max-width:360px">
+        <label>選擇下拉選單</label>
+        <select id="systemListSelect">
+          <option value="">請選擇</option>
+          ${SYSTEM_LISTS.map(x=>`<option value="${x.key}" ${x.key===currentSystemListKey?'selected':''}>${esc(x.label)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    ${cfg ? renderSystemListEditor(cfg) : `<div class="empty">${ICONS.tag}<div class="msg">請先選擇要編輯的下拉選單</div></div>`}
+  `;
+  document.getElementById('systemListSelect').onchange = e=>{ currentSystemListKey = e.target.value; renderSystemLists(); };
+}
+function renderSystemListEditor(cfg){
+  const items = cfg.getItems().slice().sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant'));
+  return `
+    <div class="section-title" style="margin-top:0"><span>${esc(cfg.label)}選項</span><button class="btn btn-primary btn-sm" onclick="openSystemListItemForm('${cfg.key}')">${ICONS.plus}新增選項</button></div>
     <div class="card">
-      ${list.length ? `
-      <table><thead><tr><th>廠牌名稱</th><th>使用中機台數</th><th style="width:96px"></th></tr></thead>
-      <tbody>${list.map(b=>{
-        const count = DB.machines.filter(m=>m.brand===b.name).length;
-        return `<tr><td class="cell-strong">${esc(b.name)}</td><td class="mono">${count} 台</td>
-          <td><div class="row-actions"><button class="icon-btn" title="編輯" onclick="openBrandForm('${b.id}')">${ICONS.edit}</button><button class="icon-btn" title="刪除" onclick="deleteBrand('${b.id}')">${ICONS.trash}</button></div></td></tr>`;
-      }).join('')}</tbody></table>` : `<div class="empty">${ICONS.tag}<div class="msg">尚未建立任何廠牌</div><div class="hint">新增廠牌後，新增堆高機時就能直接下拉選擇</div></div>`}
+      ${items.length ? `
+      <table><thead><tr><th>選項內容</th><th style="width:100px">顯示</th><th style="width:160px">操作</th></tr></thead>
+      <tbody>${items.map(it=>{
+        const visible = it.visible !== false;
+        return `<tr><td class="cell-strong">${esc(it.name)}</td>
+        <td><span class="badge ${visible?'green':'gray'}">${visible?'是':'否'}</span></td>
+        <td><div class="row-actions">
+          <button class="btn btn-solid-green btn-sm" onclick="openSystemListItemForm('${cfg.key}','${it.id}')">更新</button>
+          <button class="btn btn-solid-red btn-sm" onclick="deleteSystemListItem('${cfg.key}','${it.id}')">刪除</button>
+        </div></td></tr>`;
+      }).join('')}</tbody></table>` : `<div class="empty" style="padding:40px"><div class="msg">目前沒有任何選項</div><div class="hint">點右上角新增第一個選項</div></div>`}
     </div>
   `;
-  document.getElementById('bSearch').oninput = e=>{ brandFilters.q=e.target.value; renderBrands(); preserveFocus('bSearch'); };
 }
-function openBrandForm(id){
-  const b = id ? DB.brands.find(x=>x.id===id) : null;
+function openSystemListItemForm(listKey, id){
+  const cfg = SYSTEM_LISTS.find(x=>x.key===listKey);
+  const item = id ? cfg.getItems().find(x=>x.id===id) : null;
+  const isVisible = item ? item.visible!==false : true;
   document.getElementById('modalBox').innerHTML = `
-    <div class="modal-head"><h2>${b?'編輯廠牌':'新增廠牌'}</h2><div class="modal-close" onclick="closeModal()">✕</div></div>
+    <div class="modal-head"><h2>${item?'編輯選項':'新增選項'} · ${esc(cfg.label)}</h2><div class="modal-close" onclick="closeModal()">✕</div></div>
     <div class="modal-body">
-      <div class="field"><label>廠牌名稱 <span class="req">*</span></label><input id="f_brandName" value="${esc(b?.name||'')}" placeholder="例如 TOYOTA"></div>
+      <div class="field"><label>選項內容 <span class="req">*</span></label><input id="f_itemName" value="${esc(item?.name||'')}" placeholder="輸入選項文字"></div>
+      <div class="field"><label>顯示在下拉選單中</label>
+        <select id="f_itemVisible">
+          <option value="true" ${isVisible?'selected':''}>是</option>
+          <option value="false" ${!isVisible?'selected':''}>否</option>
+        </select>
+      </div>
     </div>
-    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveBrand('${id||''}')">${ICONS.check}儲存</button></div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveSystemListItem('${listKey}','${id||''}')">${ICONS.check}儲存</button></div>
   `;
   openModal();
 }
-async function saveBrand(id){
-  const name = val('f_brandName').trim();
-  if(!name){ showToast('請填寫廠牌名稱', true); return; }
-  const dup = DB.brands.find(b=>b.name===name && b.id!==id);
-  if(dup){ showToast('這個廠牌名稱已經存在', true); return; }
-  const row = id ? { id, name } : { id: uid(), name };
-  const err = await upsertRow('brands', row);
+async function saveSystemListItem(listKey, id){
+  const cfg = SYSTEM_LISTS.find(x=>x.key===listKey);
+  const name = val('f_itemName').trim();
+  if(!name){ showToast('請輸入選項內容', true); return; }
+  const visible = val('f_itemVisible') === 'true';
+  const items = cfg.getItems();
+  const dup = items.find(x=>x.name===name && x.id!==id);
+  if(dup){ showToast('這個選項已經存在', true); return; }
+  const row = id ? { id, name, visible, ...cfg.extra } : { id: uid(), name, visible, ...cfg.extra };
+  const err = await upsertRow(cfg.table, row);
   if(err){ showToast('儲存失敗：'+err, true); return; }
-  let msg = id ? '已更新廠牌' : '已新增廠牌', isErr = false;
+  let msg = id ? '已更新選項' : '已新增選項', isErr = false;
   if(id){
-    const old = DB.brands.find(b=>b.id===id);
-    const affectedMachines = DB.machines.filter(m=>m.brand===old.name);
-    if(affectedMachines.length){
-      affectedMachines.forEach(m=>m.brand=name);
-      const machErr = await upsertRows('machines', affectedMachines);
-      if(machErr){ msg += '，但同步機台資料失敗：'+machErr; isErr = true; }
+    const old = items.find(x=>x.id===id);
+    const oldName = old.name;
+    Object.assign(old, row);
+    if(cfg.onRename && oldName !== name){
+      const extraMsg = await cfg.onRename(oldName, name);
+      if(extraMsg){ msg += extraMsg; isErr = true; }
     }
-    old.name = name;
   }else{
-    DB.brands.push(row);
+    cfg.addItem(row);
   }
   showToast(msg, isErr);
-  closeModal(); render();
+  closeModal();
+  renderSystemLists();
 }
-async function deleteBrand(id){
-  const b = DB.brands.find(x=>x.id===id);
-  if(!b) return;
-  if(!confirm(`確定要刪除「${b.name}」嗎？已使用此廠牌的堆高機資料不會被刪除，但廠牌欄位需要重新選擇。`)) return;
-  const { error } = await sb.from('brands').delete().eq('id', id);
+async function deleteSystemListItem(listKey, id){
+  const cfg = SYSTEM_LISTS.find(x=>x.key===listKey);
+  const item = cfg.getItems().find(x=>x.id===id);
+  if(!item) return;
+  if(!confirm(`確定要刪除「${item.name}」這個選項嗎？`)) return;
+  const { error } = await sb.from(cfg.table).delete().eq('id', id);
   if(error){ showToast('刪除失敗，請檢查網路連線', true); return; }
-  DB.brands = DB.brands.filter(x=>x.id!==id);
-  showToast('已刪除'); render();
+  cfg.removeItem(id);
+  showToast('已刪除');
+  renderSystemLists();
 }
 
 /* ============================= PARTS ============================= */
@@ -1694,7 +1802,7 @@ function openVendorForm(id){
         <div class="field"><label>廠商名稱 <span class="req">*</span></label><input id="f_name" value="${esc(v?.name||'')}" placeholder="例如 永盛零件行"></div>
         <div class="field"><label>類型</label>
           <input id="f_category" list="f_category_list" value="${esc(v?.category||'')}" placeholder="搜尋或輸入類型" autocomplete="off">
-          <datalist id="f_category_list">${['零件供應商','外包維修廠','其他'].map(t=>`<option value="${t}">`).join('')}</datalist>
+          <datalist id="f_category_list">${optionListValues('vendor_category').map(t=>`<option value="${esc(t)}">`).join('')}</datalist>
         </div>
       </div>
       <div class="form-row">
