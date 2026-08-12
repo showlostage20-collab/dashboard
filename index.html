@@ -426,7 +426,7 @@ function toSnakeRow(obj){
   for(const k in obj){
     if(obj[k]===undefined) continue;
     const snake = k.replace(/[A-Z]/g, c=>'_'+c.toLowerCase());
-    out[snake] = obj[k];
+    out[snake] = (obj[k] === '') ? null : obj[k];
   }
   return out;
 }
