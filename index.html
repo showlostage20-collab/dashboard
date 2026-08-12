@@ -277,6 +277,33 @@
     width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;
     font-family:var(--font-ui);font-size:13.5px;background:#fff;color:var(--text);
   }
+  .field input[list]{
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7387' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right 12px center;
+    background-size:15px;
+    padding-right:36px;
+  }
+
+  /* ---------- Custom combobox (searchable dropdown) ---------- */
+  .combo-wrap{position:relative;}
+  .combo-input{
+    width:100%;padding:10px 36px 10px 12px;border:1px solid var(--border-strong);border-radius:8px;
+    font-family:var(--font-ui);font-size:13.5px;background:#fff;color:var(--text);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7387' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 12px center;background-size:15px;
+  }
+  .combo-input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft);}
+  .combo-panel{
+    display:none;position:absolute;left:0;right:0;top:calc(100% + 6px);
+    background:#fff;border:1px solid var(--border-strong);border-radius:10px;
+    box-shadow:0 14px 32px rgba(15,23,42,.18);max-height:220px;overflow-y:auto;z-index:60;padding:6px;
+  }
+  .combo-panel.show{display:block;}
+  .combo-option{padding:9px 12px;border-radius:7px;font-size:13.5px;cursor:pointer;color:var(--text);}
+  .combo-option:hover{background:var(--gray-soft);}
+  .combo-option.selected{background:var(--blue);color:#fff;}
+  .combo-empty{padding:9px 12px;font-size:12.5px;color:var(--text-faint);}
   .field textarea{resize:vertical;min-height:64px;font-family:var(--font-ui);}
   .field input:focus, .field select:focus, .field textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft);}
   .field .req{color:var(--red);}
@@ -289,8 +316,7 @@
 
   /* ---------- Quick-add todos (dashboard) ---------- */
   .todo-quick-add{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
-  .todo-quick-add input{flex:1;min-width:160px;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13.5px;font-family:var(--font-ui);background:#fff;color:var(--text);}
-  .todo-quick-add input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft);}
+  .todo-quick-add .combo-wrap{flex:1;min-width:160px;}
   .todo-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:8px;border:1px solid var(--border);margin-bottom:8px;}
   .todo-item:last-child{margin-bottom:0;}
   .todo-item .info{flex:1;min-width:0;}
@@ -374,6 +400,7 @@
   /* Prevent iOS auto-zoom on form focus + bigger touch targets on touch devices */
   @media(max-width:900px){
     .field input, .field select, .field textarea{font-size:16px;padding:11px 12px;}
+    .combo-input{font-size:16px;padding:11px 36px 11px 12px;}
     .icon-btn{width:34px;height:34px;}
     .nav-item{padding:12px 12px;}
   }
@@ -603,6 +630,36 @@ function esc(s){ return (s??'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;',
 function val(id){ return document.getElementById(id).value; }
 function money(n){ return n? 'NT$'+Number(n).toLocaleString() : '—'; }
 
+/* ---------- 自訂搜尋式下拉選單元件 ---------- */
+function setupCombo(inputId, getOptions, onSelect){
+  const inputEl = document.getElementById(inputId);
+  const panelEl = document.getElementById(inputId+'_panel');
+  if(!inputEl || !panelEl) return;
+  function renderPanel(){
+    const q = (inputEl.value||'').trim().toLowerCase();
+    const options = getOptions();
+    const filtered = q ? options.filter(o=>o.toLowerCase().includes(q)) : options;
+    if(filtered.length){
+      panelEl.innerHTML = filtered.map(o=>`<div class="combo-option${o===inputEl.value?' selected':''}" data-value="${esc(o)}">${esc(o)}</div>`).join('');
+      panelEl.querySelectorAll('.combo-option').forEach(opt=>{
+        opt.addEventListener('mousedown', e=>{
+          e.preventDefault();
+          inputEl.value = opt.dataset.value;
+          panelEl.classList.remove('show');
+          if(onSelect) onSelect(opt.dataset.value);
+        });
+      });
+    }else{
+      const trimmed = inputEl.value.trim();
+      panelEl.innerHTML = `<div class="combo-empty">${trimmed? '沒有符合的選項，可直接使用「'+esc(trimmed)+'」' : '沒有可選擇的選項'}</div>`;
+    }
+  }
+  inputEl.addEventListener('focus', ()=>{ renderPanel(); panelEl.classList.add('show'); });
+  inputEl.addEventListener('input', ()=>{ renderPanel(); panelEl.classList.add('show'); if(onSelect) onSelect(inputEl.value); });
+  inputEl.addEventListener('blur', ()=>{ setTimeout(()=>panelEl.classList.remove('show'), 150); });
+  inputEl.addEventListener('keydown', e=>{ if(e.key==='Escape' || e.key==='Enter'){ panelEl.classList.remove('show'); if(e.key==='Enter') e.preventDefault(); } });
+}
+
 function statusBadge(status){
   const map = {
     '使用中':'green', '維修中':'amber', '停用':'gray',
@@ -793,15 +850,12 @@ function renderTodoSection(){
   const pending = all.filter(t=>!t.done);
   const done = all.filter(t=>t.done);
   const visible = showDoneTodos ? all : pending;
-  const customerNames = [...new Set(DB.machines.map(m=>m.customer).filter(Boolean))];
   return `
     <div class="section-title" style="margin-top:0"><span>待辦事項</span><span class="badge ${pending.length?'amber':'green'}">${pending.length} 筆待處理</span></div>
     <div class="card" style="padding:16px 18px 18px 18px;overflow:visible;margin-bottom:22px;">
       <div class="todo-quick-add">
-        <input id="todoCustomer" placeholder="客戶名稱" list="todoCustomerList" autocomplete="off">
-        <datalist id="todoCustomerList">${customerNames.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
-        <input id="todoIssue" placeholder="問題描述" list="todoIssueList" autocomplete="off">
-        <datalist id="todoIssueList">${visibleIssueNames().map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+        <div class="combo-wrap"><input id="todoCustomer" class="combo-input" placeholder="客戶名稱" autocomplete="off"><div class="combo-panel" id="todoCustomer_panel"></div></div>
+        <div class="combo-wrap"><input id="todoIssue" class="combo-input" placeholder="問題描述" autocomplete="off"><div class="combo-panel" id="todoIssue_panel"></div></div>
         <button class="btn btn-primary btn-sm" id="todoAddBtn">${ICONS.plus}新增待辦</button>
       </div>
       <div id="todoList">
@@ -827,6 +881,8 @@ function wireTodoSection(){
   const btn = document.getElementById('todoAddBtn');
   if(!btn) return;
   btn.addEventListener('click', addTodo);
+  setupCombo('todoCustomer', ()=>optionListValues('customer'));
+  setupCombo('todoIssue', ()=>visibleIssueNames());
   ['todoCustomer','todoIssue'].forEach(id=>{
     const el = document.getElementById(id);
     el.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); addTodo(); } });
@@ -1028,35 +1084,35 @@ function openMachineForm(id, presetCustomer){
       <div class="form-row">
         <div class="field"><label>機號 <span class="req">*</span></label><input id="f_machineNo" value="${esc(m?.machineNo||'')}" placeholder="例如 8FD30-12345"></div>
         <div class="field"><label>客戶名稱 <span class="req">*</span></label>
-          <input id="f_customer" list="f_customer_list" value="${esc(m?.customer || presetCustomer || '')}" placeholder="搜尋或輸入客戶名稱" autocomplete="off">
-          <datalist id="f_customer_list">${optionListValues('customer').map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+          <div class="combo-wrap"><input id="f_customer" class="combo-input" value="${esc(m?.customer || presetCustomer || '')}" placeholder="搜尋或輸入客戶名稱" autocomplete="off"><div class="combo-panel" id="f_customer_panel"></div></div>
         </div>
       </div>
       <div class="form-row">
         <div class="field"><label>交車日期</label><input type="date" id="f_deliveryDate" value="${esc(m?.deliveryDate||'')}"></div>
         <div class="field"><label>動力類型</label>
-          <input id="f_powerType" list="f_powerType_list" value="${esc(m?.powerType||'')}" placeholder="搜尋或選擇動力類型" autocomplete="off">
-          <datalist id="f_powerType_list">${optionListValues('power_type').map(p=>`<option value="${esc(p)}">`).join('')}</datalist>
+          <div class="combo-wrap"><input id="f_powerType" class="combo-input" value="${esc(m?.powerType||'')}" placeholder="搜尋或選擇動力類型" autocomplete="off"><div class="combo-panel" id="f_powerType_panel"></div></div>
         </div>
       </div>
       <div class="form-row">
         <div class="field"><label>廠牌</label>
-          <input id="f_brand" list="f_brand_list" value="${esc(m?.brand||'')}" placeholder="搜尋或輸入新廠牌" autocomplete="off">
-          <datalist id="f_brand_list">${visibleBrandNames().map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+          <div class="combo-wrap"><input id="f_brand" class="combo-input" value="${esc(m?.brand||'')}" placeholder="搜尋或輸入新廠牌" autocomplete="off"><div class="combo-panel" id="f_brand_panel"></div></div>
         </div>
         <div class="field"><label>型號</label><input id="f_model" value="${esc(m?.model||'')}" placeholder="例如 8FD30"></div>
       </div>
       <div class="form-row">
         <div class="field"><label>引擎號碼</label><input id="f_engineNo" value="${esc(m?.engineNo||'')}" placeholder="選填"></div>
         <div class="field"><label>噸位 / 承重</label>
-          <input id="f_capacity" list="f_capacity_list" value="${esc(m?.capacity||'')}" placeholder="搜尋或輸入噸位" autocomplete="off">
-          <datalist id="f_capacity_list">${optionListValues('capacity').map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+          <div class="combo-wrap"><input id="f_capacity" class="combo-input" value="${esc(m?.capacity||'')}" placeholder="搜尋或輸入噸位" autocomplete="off"><div class="combo-panel" id="f_capacity_panel"></div></div>
         </div>
       </div>
       <div class="field"><label>備註</label><textarea id="f_notes" placeholder="其他補充資訊">${esc(m?.notes||'')}</textarea></div>
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveMachine('${id||''}')">${ICONS.check}儲存</button></div>
   `;
+  setupCombo('f_customer', ()=>optionListValues('customer'));
+  setupCombo('f_powerType', ()=>optionListValues('power_type'));
+  setupCombo('f_brand', ()=>visibleBrandNames());
+  setupCombo('f_capacity', ()=>optionListValues('capacity'));
   openModal();
 }
 function rerenderMachineViews(){
@@ -1283,16 +1339,18 @@ function renderPartsPicker(){
     const p = row.partId ? getPart(row.partId) : null;
     return `
     <div class="parts-picker-row">
-      <input list="partsList_${i}" value="${esc(p?partComboLabel(p):'')}" placeholder="搜尋零件" oninput="handlePartRowInput(${i}, this.value)" autocomplete="off">
-      <datalist id="partsList_${i}">${DB.parts.map(pp=>`<option value="${esc(partComboLabel(pp))}">`).join('')}</datalist>
+      <div class="combo-wrap"><input id="partsRow_${i}" class="combo-input" value="${esc(p?partComboLabel(p):'')}" placeholder="搜尋零件" autocomplete="off"><div class="combo-panel" id="partsRow_${i}_panel"></div></div>
       <input type="number" min="1" value="${row.qty}" oninput="currentRepairParts[${i}].qty=this.value">
       <div class="parts-picker-remove" onclick="currentRepairParts.splice(${i},1); renderPartsPicker();">✕</div>
     </div>
   `;
   }).join('') || `<div style="font-size:12.5px;color:var(--text-faint)">尚未加入零件，點下方按鈕新增</div>`;
+  currentRepairParts.forEach((row,i)=>{
+    setupCombo(`partsRow_${i}`, ()=>DB.parts.map(pp=>partComboLabel(pp)), (v)=>handlePartRowInput(i, v));
+  });
 }
-function handlePartRowInput(i, val){
-  const match = DB.parts.find(p=>partComboLabel(p)===val);
+function handlePartRowInput(i, v){
+  const match = DB.parts.find(p=>partComboLabel(p)===v);
   currentRepairParts[i].partId = match ? match.id : '';
 }
 function addPartRow(){ currentRepairParts.push({partId:'', qty:1}); renderPartsPicker(); }
@@ -1316,8 +1374,7 @@ function openRepairForm(id, presetMachineId){
         <div class="field"><label>狀態</label><select id="f_status">${['待處理','處理中','已完成','已取消'].map(s=>`<option ${r?.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
       </div>
       <div class="field"><label>問題描述 <span class="req">*</span></label>
-        <input id="f_issue" list="f_issue_list" value="${esc(r?.issue||'')}" placeholder="搜尋或輸入新問題" autocomplete="off">
-        <datalist id="f_issue_list">${visibleIssueNames().map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+        <div class="combo-wrap"><input id="f_issue" class="combo-input" value="${esc(r?.issue||'')}" placeholder="搜尋或輸入新問題" autocomplete="off"><div class="combo-panel" id="f_issue_panel"></div></div>
       </div>
       <div class="field"><label>處理方式</label><textarea id="f_action" placeholder="例如：更換油封、清洗油路">${esc(r?.action||'')}</textarea></div>
       <div class="field">
@@ -1328,13 +1385,14 @@ function openRepairForm(id, presetMachineId){
       <div class="form-row">
         <div class="field"><label>費用 (NT$)</label><input type="number" id="f_cost" value="${r?.cost||''}" placeholder="0"></div>
         <div class="field"><label>負責技師</label>
-          <input id="f_technician" list="f_technician_list" value="${esc(r?.technician||'')}" placeholder="搜尋或輸入技師姓名" autocomplete="off">
-          <datalist id="f_technician_list">${optionListValues('technician').map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+          <div class="combo-wrap"><input id="f_technician" class="combo-input" value="${esc(r?.technician||'')}" placeholder="搜尋或輸入技師姓名" autocomplete="off"><div class="combo-panel" id="f_technician_panel"></div></div>
         </div>
       </div>
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveRepair('${id||''}')">${ICONS.check}儲存</button></div>
   </div>`;
+  setupCombo('f_issue', ()=>visibleIssueNames());
+  setupCombo('f_technician', ()=>optionListValues('technician'));
   renderPartsPicker();
   openModal();
 }
@@ -1530,8 +1588,7 @@ function openMaintenanceForm(id, presetMachineId){
       </div>
       <div class="form-row">
         <div class="field"><label>保養類型</label>
-          <input id="f_type" list="f_type_list" value="${esc(item?.type||'定期保養')}" placeholder="搜尋或輸入保養類型" autocomplete="off">
-          <datalist id="f_type_list">${optionListValues('maintenance_type').map(t=>`<option value="${esc(t)}">`).join('')}</datalist>
+          <div class="combo-wrap"><input id="f_type" class="combo-input" value="${esc(item?.type||'定期保養')}" placeholder="搜尋或輸入保養類型" autocomplete="off"><div class="combo-panel" id="f_type_panel"></div></div>
         </div>
         <div class="field"><label>保養週期 (天) <span class="req">*</span></label><input type="number" id="f_cycleDays" value="${item?.cycleDays||90}" min="1"></div>
       </div>
@@ -1540,6 +1597,7 @@ function openMaintenanceForm(id, presetMachineId){
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveMaintenance('${id||''}')">${ICONS.check}儲存</button></div>
   `;
+  setupCombo('f_type', ()=>optionListValues('maintenance_type'));
   openModal();
 }
 async function saveMaintenance(id){
@@ -1800,8 +1858,7 @@ function openPartForm(id){
       <div class="form-row">
         <div class="field"><label>分類</label><input id="f_category" value="${esc(p?.category||'')}" placeholder="例如 油壓系統"></div>
         <div class="field"><label>供應商</label>
-          <input id="f_vendorName" list="f_vendorName_list" value="${esc(currentVendor?currentVendor.name:'')}" placeholder="搜尋供應商，留空表示未指定" autocomplete="off">
-          <datalist id="f_vendorName_list">${DB.vendors.map(v=>`<option value="${esc(v.name)}">`).join('')}</datalist>
+          <div class="combo-wrap"><input id="f_vendorName" class="combo-input" value="${esc(currentVendor?currentVendor.name:'')}" placeholder="搜尋供應商，留空表示未指定" autocomplete="off"><div class="combo-panel" id="f_vendorName_panel"></div></div>
         </div>
       </div>
       <div class="form-row">
@@ -1816,6 +1873,7 @@ function openPartForm(id){
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="savePart('${id||''}')">${ICONS.check}儲存</button></div>
   `;
+  setupCombo('f_vendorName', ()=>DB.vendors.map(v=>v.name));
   openModal();
 }
 async function savePart(id){
@@ -1870,8 +1928,7 @@ function openVendorForm(id){
       <div class="form-row">
         <div class="field"><label>廠商名稱 <span class="req">*</span></label><input id="f_name" value="${esc(v?.name||'')}" placeholder="例如 永盛零件行"></div>
         <div class="field"><label>類型</label>
-          <input id="f_category" list="f_category_list" value="${esc(v?.category||'')}" placeholder="搜尋或輸入類型" autocomplete="off">
-          <datalist id="f_category_list">${optionListValues('vendor_category').map(t=>`<option value="${esc(t)}">`).join('')}</datalist>
+          <div class="combo-wrap"><input id="f_category" class="combo-input" value="${esc(v?.category||'')}" placeholder="搜尋或輸入類型" autocomplete="off"><div class="combo-panel" id="f_category_panel"></div></div>
         </div>
       </div>
       <div class="form-row">
@@ -1884,6 +1941,7 @@ function openVendorForm(id){
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveVendor('${id||''}')">${ICONS.check}儲存</button></div>
   `;
+  setupCombo('f_category', ()=>optionListValues('vendor_category'));
   openModal();
 }
 async function saveVendor(id){
