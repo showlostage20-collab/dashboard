@@ -6,6 +6,7 @@
 <title>堆高機維修管理系統</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --bg-sidebar:#0b1220;
@@ -416,7 +417,28 @@
 
 <script>
 /* ============================= DATA LAYER ============================= */
-const STORAGE_KEY = 'forklift-service-data-v2';
+const SUPABASE_URL = 'https://yayikiykrhwuwmpiguqn.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_EbChpmyP0tD1q1Bt2nJi1w_4rUNajSo';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+function toSnakeRow(obj){
+  const out = {};
+  for(const k in obj){
+    if(obj[k]===undefined) continue;
+    const snake = k.replace(/[A-Z]/g, c=>'_'+c.toLowerCase());
+    out[snake] = obj[k];
+  }
+  return out;
+}
+function toCamelRow(obj){
+  const out = {};
+  for(const k in obj){
+    const camel = k.replace(/_([a-z])/g, (_,c)=>c.toUpperCase());
+    out[camel] = obj[k];
+  }
+  return out;
+}
+
 let DB = { machines:[], repairs:[], maintenance:[], parts:[], vendors:[], brands:[], issueTypes:[], todos:[], settings:{} };
 let currentView = 'dashboard';
 let currentDetailMachine = null;
@@ -428,9 +450,23 @@ const daysBetween = (a,b) => Math.round((new Date(b) - new Date(a)) / 86400000);
 
 async function loadData(){
   try{
-    const res = await window.storage.get(STORAGE_KEY, true);
-    if(res && res.value){ DB = JSON.parse(res.value); }
-  }catch(e){ /* first run */ }
+    const tables = ['machines','repairs','maintenance','vendors','parts','brands','issue_types','todos'];
+    const results = await Promise.all(tables.map(t=> sb.from(t).select('*')));
+    results.forEach((r,i)=>{ if(r.error) throw r.error; });
+    DB.machines = results[0].data.map(toCamelRow);
+    DB.repairs = results[1].data.map(toCamelRow);
+    DB.maintenance = results[2].data.map(toCamelRow);
+    DB.vendors = results[3].data.map(toCamelRow);
+    DB.parts = results[4].data.map(toCamelRow);
+    DB.brands = results[5].data.map(toCamelRow);
+    DB.issueTypes = results[6].data.map(toCamelRow);
+    DB.todos = results[7].data.map(toCamelRow);
+    const settingsRes = await sb.from('settings').select('*').eq('id','main').maybeSingle();
+    if(settingsRes.error) throw settingsRes.error;
+    DB.settings = settingsRes.data ? toCamelRow(settingsRes.data) : {};
+  }catch(e){
+    showToast('讀取資料失敗，請檢查網路連線或 Supabase 設定', true);
+  }
   DB.machines = DB.machines || [];
   DB.repairs = DB.repairs || [];
   DB.maintenance = DB.maintenance || [];
@@ -448,10 +484,12 @@ async function loadData(){
   });
   /* 把既有機台用過的廠牌自動補進廠牌清單，避免下拉選單找不到舊資料 */
   const existingNames = new Set(DB.brands.map(b=>b.name));
+  let seededNew = false;
   DB.machines.forEach(m=>{
     if(m.brand && m.brand.trim() && !existingNames.has(m.brand.trim())){
       DB.brands.push({id:uid(), name:m.brand.trim()});
       existingNames.add(m.brand.trim());
+      seededNew = true;
     }
   });
   /* 把既有維修紀錄用過的問題描述自動補進問題清單，避免下拉選單找不到舊資料 */
@@ -460,12 +498,27 @@ async function loadData(){
     if(r.issue && r.issue.trim() && !existingIssues.has(r.issue.trim())){
       DB.issueTypes.push({id:uid(), name:r.issue.trim()});
       existingIssues.add(r.issue.trim());
+      seededNew = true;
     }
   });
+  if(seededNew) await saveData();
 }
 async function saveData(){
-  try{ await window.storage.set(STORAGE_KEY, JSON.stringify(DB), true); }
-  catch(e){ showToast('儲存失敗，請檢查網路連線', true); }
+  try{
+    const ops = [];
+    if(DB.machines.length) ops.push(sb.from('machines').upsert(DB.machines.map(toSnakeRow)));
+    if(DB.repairs.length) ops.push(sb.from('repairs').upsert(DB.repairs.map(toSnakeRow)));
+    if(DB.maintenance.length) ops.push(sb.from('maintenance').upsert(DB.maintenance.map(toSnakeRow)));
+    if(DB.vendors.length) ops.push(sb.from('vendors').upsert(DB.vendors.map(toSnakeRow)));
+    if(DB.parts.length) ops.push(sb.from('parts').upsert(DB.parts.map(toSnakeRow)));
+    if(DB.brands.length) ops.push(sb.from('brands').upsert(DB.brands.map(toSnakeRow)));
+    if(DB.issueTypes.length) ops.push(sb.from('issue_types').upsert(DB.issueTypes.map(toSnakeRow)));
+    if(DB.todos.length) ops.push(sb.from('todos').upsert(DB.todos.map(toSnakeRow)));
+    if(DB.settings && Object.keys(DB.settings).length) ops.push(sb.from('settings').upsert(toSnakeRow({id:'main', ...DB.settings})));
+    const results = await Promise.all(ops);
+    const failed = results.find(r=>r.error);
+    if(failed) throw failed.error;
+  }catch(e){ showToast('儲存失敗，請檢查網路連線', true); }
 }
 
 /* ============================= HELPERS ============================= */
@@ -734,6 +787,7 @@ async function toggleTodoDone(id){
 }
 async function deleteTodo(id){
   DB.todos = DB.todos.filter(x=>x.id!==id);
+  try{ await sb.from('todos').delete().eq('id', id); }catch(e){}
   await saveData();
   renderDashboard();
 }
@@ -949,6 +1003,7 @@ async function deleteMachine(id){
   DB.machines = DB.machines.filter(m=>m.id!==id);
   DB.repairs = DB.repairs.filter(r=>r.machineId!==id);
   DB.maintenance = DB.maintenance.filter(x=>x.machineId!==id);
+  try{ await sb.from('machines').delete().eq('id', id); }catch(e){}
   await saveData(); showToast('已刪除'); rerenderMachineViews();
 }
 
@@ -1219,6 +1274,7 @@ async function deleteRepair(id){
   const r = DB.repairs.find(x=>x.id===id);
   if(r) adjustStock(r.partsUsed, +1);
   DB.repairs = DB.repairs.filter(r=>r.id!==id);
+  try{ await sb.from('repairs').delete().eq('id', id); }catch(e){}
   await saveData(); showToast('已刪除');
   rerenderRepairViews();
 }
@@ -1391,6 +1447,7 @@ async function markMaintained(id){
 async function deleteMaintenance(id){
   if(!confirm('確定要刪除這個保養排程嗎？')) return;
   DB.maintenance = DB.maintenance.filter(x=>x.id!==id);
+  try{ await sb.from('maintenance').delete().eq('id', id); }catch(e){}
   await saveData(); showToast('已刪除');
   rerenderMaintenanceViews();
 }
@@ -1448,6 +1505,7 @@ async function deleteBrand(id){
   if(!b) return;
   if(!confirm(`確定要刪除「${b.name}」嗎？已使用此廠牌的堆高機資料不會被刪除，但廠牌欄位需要重新選擇。`)) return;
   DB.brands = DB.brands.filter(x=>x.id!==id);
+  try{ await sb.from('brands').delete().eq('id', id); }catch(e){}
   await saveData(); showToast('已刪除'); render();
 }
 
@@ -1531,6 +1589,7 @@ async function savePart(id){
 async function deletePart(id){
   if(!confirm('確定要刪除這個零件嗎？')) return;
   DB.parts = DB.parts.filter(p=>p.id!==id);
+  try{ await sb.from('parts').delete().eq('id', id); }catch(e){}
   await saveData(); showToast('已刪除'); render();
 }
 
@@ -1592,6 +1651,7 @@ async function deleteVendor(id){
   if(!confirm('確定要刪除這個廠商嗎？')) return;
   DB.vendors = DB.vendors.filter(v=>v.id!==id);
   DB.parts.forEach(p=>{ if(p.vendorId===id) p.vendorId=null; });
+  try{ await sb.from('vendors').delete().eq('id', id); }catch(e){}
   await saveData(); showToast('已刪除'); render();
 }
 
@@ -1748,7 +1808,8 @@ document.getElementById('importFile').addEventListener('change', function(e){
       const parsed = JSON.parse(evt.target.result);
       if(!confirm('匯入將會覆蓋目前所有資料，確定要繼續嗎？')) return;
       DB = { machines:parsed.machines||[], repairs:parsed.repairs||[], maintenance:parsed.maintenance||[],
-             parts:parsed.parts||[], vendors:parsed.vendors||[], settings:parsed.settings||{} };
+             parts:parsed.parts||[], vendors:parsed.vendors||[], brands:parsed.brands||[],
+             issueTypes:parsed.issueTypes||[], todos:parsed.todos||[], settings:parsed.settings||{} };
       await saveData();
       showToast('已匯入備份資料');
       render();
@@ -1759,8 +1820,21 @@ document.getElementById('importFile').addEventListener('change', function(e){
 });
 async function resetAllData(){
   if(!confirm('這將永久清空所有堆高機、維修、保養、零件與廠商資料，且無法復原，確定要繼續嗎？')) return;
-  DB = { machines:[], repairs:[], maintenance:[], parts:[], vendors:[], settings:DB.settings||{} };
-  await saveData();
+  try{
+    await Promise.all([
+      sb.from('repairs').delete().neq('id','__never__'),
+      sb.from('maintenance').delete().neq('id','__never__'),
+    ]);
+    await Promise.all([
+      sb.from('machines').delete().neq('id','__never__'),
+      sb.from('parts').delete().neq('id','__never__'),
+      sb.from('vendors').delete().neq('id','__never__'),
+      sb.from('brands').delete().neq('id','__never__'),
+      sb.from('issue_types').delete().neq('id','__never__'),
+      sb.from('todos').delete().neq('id','__never__'),
+    ]);
+  }catch(e){ showToast('清空資料失敗，請檢查網路連線', true); return; }
+  DB = { machines:[], repairs:[], maintenance:[], parts:[], vendors:[], brands:[], issueTypes:[], todos:[], settings:DB.settings||{} };
   showToast('已清空所有資料');
   render();
 }
