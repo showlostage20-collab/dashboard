@@ -438,6 +438,16 @@ function toCamelRow(obj){
   }
   return out;
 }
+/* 單筆 upsert：先確認 Supabase 寫入成功，成功才回傳 null（可放心更新畫面）；失敗回傳錯誤訊息 */
+async function upsertRow(table, camelRow){
+  const { error } = await sb.from(table).upsert(toSnakeRow(camelRow));
+  return error ? (error.message || '未知錯誤') : null;
+}
+async function upsertRows(table, camelRows){
+  if(!camelRows.length) return null;
+  const { error } = await sb.from(table).upsert(camelRows.map(toSnakeRow));
+  return error ? (error.message || '未知錯誤') : null;
+}
 
 let DB = { machines:[], repairs:[], maintenance:[], parts:[], vendors:[], brands:[], issueTypes:[], todos:[], settings:{} };
 let currentView = 'dashboard';
@@ -770,9 +780,15 @@ async function addTodo(){
   const customer = document.getElementById('todoCustomer').value.trim();
   const issue = document.getElementById('todoIssue').value.trim();
   if(!customer || !issue){ showToast('請填寫客戶與問題', true); return; }
-  if(!DB.issueTypes.some(t=>t.name===issue)){ DB.issueTypes.push({id:uid(), name:issue}); }
-  DB.todos.unshift({id:uid(), customer, issue, createdAt:new Date().toISOString(), done:false});
-  await saveData();
+  const row = {id:uid(), customer, issue, createdAt:new Date().toISOString(), done:false};
+  const err = await upsertRow('todos', row);
+  if(err){ showToast('儲存失敗：'+err, true); return; }
+  if(!DB.issueTypes.some(t=>t.name===issue)){
+    const newIssue = {id:uid(), name:issue};
+    const issueErr = await upsertRow('issue_types', newIssue);
+    if(!issueErr) DB.issueTypes.push(newIssue);
+  }
+  DB.todos.unshift(row);
   showToast('已新增待辦事項');
   renderDashboard();
   const el = document.getElementById('todoCustomer');
@@ -781,8 +797,9 @@ async function addTodo(){
 async function toggleTodoDone(id){
   const t = DB.todos.find(x=>x.id===id);
   if(!t) return;
+  const err = await upsertRow('todos', { ...t, done: true });
+  if(err){ showToast('更新失敗：'+err, true); return; }
   t.done = true;
-  await saveData();
   renderDashboard();
 }
 async function deleteTodo(id){
@@ -993,12 +1010,19 @@ async function saveMachine(id){
   const machineNo = val('f_machineNo').trim(), customer = val('f_customer').trim();
   if(!machineNo || !customer){ showToast('請填寫機號與客戶名稱', true); return; }
   const brandVal = val('f_brand').trim();
-  if(brandVal && !DB.brands.some(b=>b.name===brandVal)){ DB.brands.push({id:uid(), name:brandVal}); }
   const data = { machineNo, customer, deliveryDate:val('f_deliveryDate'), powerType:val('f_powerType').trim(), brand:brandVal,
     model:val('f_model').trim(), engineNo:val('f_engineNo').trim(), capacity:val('f_capacity').trim(), notes:val('f_notes').trim() };
+  const row = id ? { ...data, id } : { ...data, id: uid(), createdAt: todayISO() };
+  const err = await upsertRow('machines', row);
+  if(err){ showToast('儲存失敗：'+err, true); return; }
+  if(brandVal && !DB.brands.some(b=>b.name===brandVal)){
+    const newBrand = {id:uid(), name:brandVal};
+    const brandErr = await upsertRow('brands', newBrand);
+    if(!brandErr) DB.brands.push(newBrand);
+  }
   if(id){ Object.assign(getMachine(id), data); showToast('已更新堆高機資料'); }
-  else{ data.id=uid(); data.createdAt=todayISO(); DB.machines.unshift(data); showToast('已新增堆高機'); currentDetailCustomer = customer; }
-  await saveData(); closeModal(); rerenderMachineViews();
+  else{ DB.machines.unshift(row); showToast('已新增堆高機'); currentDetailCustomer = customer; }
+  closeModal(); rerenderMachineViews();
 }
 async function deleteMachine(id){
   if(!confirm('確定要刪除這台堆高機嗎？相關的維修紀錄與保養排程也會一併移除。')) return;
@@ -1255,21 +1279,37 @@ async function saveRepair(id){
   const issueVal = val('f_issue').trim();
   if(!machineId){ showToast('找不到關聯機台，請從機台頁面新增維修紀錄', true); return; }
   if(!date || !issueVal){ showToast('請填寫維修日期與問題描述', true); return; }
-  if(!DB.issueTypes.some(t=>t.name===issueVal)){ DB.issueTypes.push({id:uid(), name:issueVal}); }
   const partsUsed = currentRepairParts.filter(p=>p.partId && Number(p.qty)>0).map(p=>({partId:p.partId, qty:Number(p.qty)}));
   const data = { machineId, date, issue:issueVal, action:val('f_action').trim(), partsUsed,
     cost: val('f_cost') ? Number(val('f_cost')) : null, technician: val('f_technician').trim(), status: val('f_status') };
-  if(id){
-    const old = DB.repairs.find(x=>x.id===id);
-    adjustStock(old.partsUsed, +1);
-    Object.assign(old, data);
-    adjustStock(old.partsUsed, -1);
-    showToast('已更新維修紀錄');
-  }else{
-    data.id = uid(); DB.repairs.unshift(data); adjustStock(data.partsUsed, -1);
-    showToast('已新增維修紀錄');
+  const old = id ? DB.repairs.find(x=>x.id===id) : null;
+  const row = id ? { ...data, id } : { ...data, id: uid() };
+
+  const err = await upsertRow('repairs', row);
+  if(err){ showToast('儲存失敗：'+err, true); return; }
+
+  if(!DB.issueTypes.some(t=>t.name===issueVal)){
+    const newIssue = {id:uid(), name:issueVal};
+    const issueErr = await upsertRow('issue_types', newIssue);
+    if(!issueErr) DB.issueTypes.push(newIssue);
   }
-  await saveData(); closeModal();
+
+  const oldPartsUsed = old ? (old.partsUsed||[]) : [];
+  const affectedIds = new Set([...oldPartsUsed.map(p=>p.partId), ...partsUsed.map(p=>p.partId)]);
+  adjustStock(oldPartsUsed, +1);
+  adjustStock(partsUsed, -1);
+  let msg = id ? '已更新維修紀錄' : '已新增維修紀錄';
+  let isErr = false;
+  if(affectedIds.size){
+    const affectedParts = [...affectedIds].map(pid=>getPart(pid)).filter(Boolean);
+    const stockErr = await upsertRows('parts', affectedParts);
+    if(stockErr){ msg += '，但零件庫存同步失敗：'+stockErr; isErr = true; }
+  }
+
+  if(id){ Object.assign(old, data); }
+  else{ DB.repairs.unshift(row); }
+  showToast(msg, isErr);
+  closeModal();
   rerenderRepairViews();
 }
 async function deleteRepair(id){
@@ -1277,9 +1317,15 @@ async function deleteRepair(id){
   const { error } = await sb.from('repairs').delete().eq('id', id);
   if(error){ showToast('刪除失敗，請檢查網路連線', true); return; }
   const r = DB.repairs.find(x=>x.id===id);
-  if(r) adjustStock(r.partsUsed, +1);
+  let msg = '已刪除', isErr = false;
+  if(r && r.partsUsed && r.partsUsed.length){
+    adjustStock(r.partsUsed, +1);
+    const affectedParts = [...new Set(r.partsUsed.map(p=>p.partId))].map(pid=>getPart(pid)).filter(Boolean);
+    const stockErr = await upsertRows('parts', affectedParts);
+    if(stockErr){ msg += '，但零件庫存同步失敗：'+stockErr; isErr = true; }
+  }
   DB.repairs = DB.repairs.filter(r=>r.id!==id);
-  await saveData(); showToast('已刪除');
+  showToast(msg, isErr);
   rerenderRepairViews();
 }
 
@@ -1436,16 +1482,22 @@ async function saveMaintenance(id){
   if(!machineId){ showToast('找不到關聯機台，請從機台頁面新增保養排程', true); return; }
   if(!lastDate || !cycleDays){ showToast('請填寫上次保養日期與週期天數', true); return; }
   const data = { machineId, lastDate, cycleDays, type: val('f_type').trim(), notes: val('f_notes').trim() };
+  const row = id ? { ...data, id } : { ...data, id: uid() };
+  const err = await upsertRow('maintenance', row);
+  if(err){ showToast('儲存失敗：'+err, true); return; }
   if(id){ Object.assign(DB.maintenance.find(x=>x.id===id), data); showToast('已更新保養排程'); }
-  else{ data.id=uid(); DB.maintenance.unshift(data); showToast('已新增保養排程'); }
-  await saveData(); closeModal();
+  else{ DB.maintenance.unshift(row); showToast('已新增保養排程'); }
+  closeModal();
   rerenderMaintenanceViews();
 }
 async function markMaintained(id){
   const item = DB.maintenance.find(x=>x.id===id);
   if(!item) return;
-  item.lastDate = todayISO();
-  await saveData(); showToast('已標記為今日完成保養，下次到期日已更新');
+  const newLastDate = todayISO();
+  const err = await upsertRow('maintenance', { ...item, lastDate: newLastDate });
+  if(err){ showToast('更新失敗：'+err, true); return; }
+  item.lastDate = newLastDate;
+  showToast('已標記為今日完成保養，下次到期日已更新');
   rerenderMaintenanceViews();
 }
 async function deleteMaintenance(id){
@@ -1494,16 +1546,24 @@ async function saveBrand(id){
   if(!name){ showToast('請填寫廠牌名稱', true); return; }
   const dup = DB.brands.find(b=>b.name===name && b.id!==id);
   if(dup){ showToast('這個廠牌名稱已經存在', true); return; }
+  const row = id ? { id, name } : { id: uid(), name };
+  const err = await upsertRow('brands', row);
+  if(err){ showToast('儲存失敗：'+err, true); return; }
+  let msg = id ? '已更新廠牌' : '已新增廠牌', isErr = false;
   if(id){
     const old = DB.brands.find(b=>b.id===id);
-    DB.machines.forEach(m=>{ if(m.brand===old.name) m.brand=name; });
+    const affectedMachines = DB.machines.filter(m=>m.brand===old.name);
+    if(affectedMachines.length){
+      affectedMachines.forEach(m=>m.brand=name);
+      const machErr = await upsertRows('machines', affectedMachines);
+      if(machErr){ msg += '，但同步機台資料失敗：'+machErr; isErr = true; }
+    }
     old.name = name;
-    showToast('已更新廠牌');
   }else{
-    DB.brands.push({id:uid(), name});
-    showToast('已新增廠牌');
+    DB.brands.push(row);
   }
-  await saveData(); closeModal(); render();
+  showToast(msg, isErr);
+  closeModal(); render();
 }
 async function deleteBrand(id){
   const b = DB.brands.find(x=>x.id===id);
@@ -1588,9 +1648,12 @@ async function savePart(id){
   const data = { name, partNo:val('f_partNo').trim(), category:val('f_category').trim(), vendorId: matchedVendor?matchedVendor.id:null,
     unitPrice: val('f_unitPrice')?Number(val('f_unitPrice')):0, unit:val('f_unit').trim(),
     stock: Number(val('f_stock'))||0, minStock: Number(val('f_minStock'))||0, notes:val('f_notes').trim() };
+  const row = id ? { ...data, id } : { ...data, id: uid() };
+  const err = await upsertRow('parts', row);
+  if(err){ showToast('儲存失敗：'+err, true); return; }
   if(id){ Object.assign(getPart(id), data); showToast('已更新零件資料'); }
-  else{ data.id=uid(); DB.parts.unshift(data); showToast('已新增零件'); }
-  await saveData(); closeModal(); render();
+  else{ DB.parts.unshift(row); showToast('已新增零件'); }
+  closeModal(); render();
 }
 async function deletePart(id){
   if(!confirm('確定要刪除這個零件嗎？')) return;
@@ -1650,9 +1713,12 @@ async function saveVendor(id){
   if(!name){ showToast('請填寫廠商名稱', true); return; }
   const data = { name, category:val('f_category'), contact:val('f_contact').trim(), phone:val('f_phone').trim(),
     email:val('f_email').trim(), address:val('f_address').trim(), notes:val('f_notes').trim() };
+  const row = id ? { ...data, id } : { ...data, id: uid() };
+  const err = await upsertRow('vendors', row);
+  if(err){ showToast('儲存失敗：'+err, true); return; }
   if(id){ Object.assign(getVendor(id), data); showToast('已更新廠商資料'); }
-  else{ data.id=uid(); DB.vendors.unshift(data); showToast('已新增廠商'); }
-  await saveData(); closeModal(); render();
+  else{ DB.vendors.unshift(row); showToast('已新增廠商'); }
+  closeModal(); render();
 }
 async function deleteVendor(id){
   if(!confirm('確定要刪除這個廠商嗎？')) return;
@@ -1660,7 +1726,7 @@ async function deleteVendor(id){
   if(error){ showToast('刪除失敗，請檢查網路連線', true); return; }
   DB.vendors = DB.vendors.filter(v=>v.id!==id);
   DB.parts.forEach(p=>{ if(p.vendorId===id) p.vendorId=null; });
-  await saveData(); showToast('已刪除'); render();
+  showToast('已刪除'); render();
 }
 
 /* ============================= REPORTS ============================= */
@@ -1794,8 +1860,10 @@ function renderSettings(){
   `;
 }
 async function saveSettings(){
-  DB.settings = { companyName: val('s_companyName').trim(), phone: val('s_phone').trim(), address: val('s_address').trim() };
-  await saveData();
+  const settings = { companyName: val('s_companyName').trim(), phone: val('s_phone').trim(), address: val('s_address').trim() };
+  const err = await upsertRow('settings', { id:'main', ...settings });
+  if(err){ showToast('儲存失敗：'+err, true); return; }
+  DB.settings = settings;
   showToast('已儲存公司資訊');
 }
 function exportData(){
