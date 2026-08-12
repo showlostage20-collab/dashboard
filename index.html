@@ -145,7 +145,7 @@
   }
   .topbar h1{font-size:19px;font-weight:900;}
   .topbar .sub{font-size:12px;color:var(--text-muted);margin-top:2px;}
-  .content{flex:1;overflow-y:auto;padding:24px 28px 60px 28px;}
+  .content{flex:1;overflow-y:auto;overflow-x:hidden;padding:24px 28px 60px 28px;}
 
   .btn{
     border:none;border-radius:8px;padding:10px 16px;font-family:var(--font-ui);
@@ -182,8 +182,9 @@
   select.filter:focus{outline:none;border-color:var(--blue);}
 
   /* ---------- Stat cards ---------- */
-  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;min-width:0;}
   .stat-card{
+    min-width:0;
     background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
     padding:16px 18px;position:relative;overflow:hidden;
   }
@@ -270,8 +271,9 @@
   .modal-head h2{font-size:16px;font-weight:900;}
   .modal-close{cursor:pointer;width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:16px;}
   .modal-close:hover{background:var(--gray-soft);}
-  .modal-body{padding:22px 24px;display:flex;flex-direction:column;gap:16px;max-height:70vh;overflow-y:auto;}
-  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .modal-body{padding:22px 24px;display:flex;flex-direction:column;gap:16px;max-height:70vh;overflow-y:auto;overflow-x:hidden;}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;min-width:0;}
+  .field{min-width:0;}
   .field label{display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px;}
   .field input, .field select, .field textarea{
     width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;
@@ -330,8 +332,8 @@
   .detail-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
   .detail-title{font-size:20px;font-weight:900;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   .detail-title .mono{font-size:13px;color:var(--text-muted);font-weight:500;display:block;margin-top:3px;}
-  .detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px;}
-  .detail-item{background:var(--card);border:1px solid var(--border);border-radius:9px;padding:12px 14px;}
+  .detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px;min-width:0;}
+  .detail-item{background:var(--card);border:1px solid var(--border);border-radius:9px;padding:12px 14px;min-width:0;overflow:hidden;}
   .detail-item .k{font-size:11px;color:var(--text-faint);font-weight:600;}
   .detail-item .v{font-size:14.5px;font-weight:700;margin-top:4px;}
   .section-title{font-size:13px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin:26px 0 10px 0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
@@ -344,7 +346,7 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
   /* ---------- Reports ---------- */
-  .report-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;margin-bottom:18px;}
+  .report-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;margin-bottom:18px;min-width:0;overflow:hidden;}
   .report-card h3{font-size:13.5px;font-weight:800;margin-bottom:16px;}
   .bar-chart{display:flex;align-items:flex-end;gap:14px;height:180px;padding-top:20px;}
   .bar-chart .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
@@ -356,7 +358,7 @@
   .legend{display:flex;gap:18px;margin-top:14px;flex-wrap:wrap;}
   .legend .item{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-muted);}
   .legend .sw{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
-  .report-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;}
+  .report-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;min-width:0;}
 
   .settings-section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:18px;}
   .settings-section h3{font-size:14px;font-weight:800;margin-bottom:4px;}
@@ -480,7 +482,7 @@ async function upsertRows(table, camelRows){
   return error ? (error.message || '未知錯誤') : null;
 }
 
-let DB = { machines:[], repairs:[], maintenance:[], parts:[], vendors:[], brands:[], issueTypes:[], todos:[], optionLists:[], settings:{} };
+let DB = { machines:[], repairs:[], maintenance:[], parts:[], vendors:[], brands:[], issueTypes:[], todos:[], optionLists:[], customers:[], settings:{} };
 let currentView = 'dashboard';
 let currentDetailMachine = null;
 let sidebarCollapsed = false;
@@ -491,7 +493,7 @@ const daysBetween = (a,b) => Math.round((new Date(b) - new Date(a)) / 86400000);
 
 async function loadData(){
   try{
-    const tables = ['machines','repairs','maintenance','vendors','parts','brands','issue_types','todos','option_lists'];
+    const tables = ['machines','repairs','maintenance','vendors','parts','brands','issue_types','todos','option_lists','customers'];
     const results = await Promise.all(tables.map(t=> sb.from(t).select('*')));
     results.forEach((r,i)=>{ if(r.error) throw r.error; });
     DB.machines = results[0].data.map(toCamelRow);
@@ -503,6 +505,7 @@ async function loadData(){
     DB.issueTypes = results[6].data.map(toCamelRow);
     DB.todos = results[7].data.map(toCamelRow);
     DB.optionLists = results[8].data.map(toCamelRow);
+    DB.customers = results[9].data.map(toCamelRow);
     const settingsRes = await sb.from('settings').select('*').eq('id','main').maybeSingle();
     if(settingsRes.error) throw settingsRes.error;
     DB.settings = settingsRes.data ? toCamelRow(settingsRes.data) : {};
@@ -519,6 +522,7 @@ async function loadData(){
   DB.settings = DB.settings || {};
   DB.todos = DB.todos || [];
   DB.optionLists = DB.optionLists || [];
+  DB.customers = DB.customers || [];
   /* migrate old schema (資產編號/車牌/狀態 → 交車日期/機號/引擎號碼，取消手動狀態) */
   DB.machines.forEach(m=>{
     if(m.machineNo===undefined) m.machineNo = m.plate || m.assetNo || '';
@@ -559,13 +563,21 @@ async function loadData(){
       seededNew = true;
     }
   });
-  /* 把既有機台用過的客戶名稱／噸位、既有維修紀錄用過的技師，自動補進「系統管理」可編輯清單 */
-  const existingCustomers = new Set(DB.optionLists.filter(x=>x.listKey==='customer').map(x=>x.name));
+  /* 把之前存在「系統管理」下拉選單裡的客戶名稱，搬進獨立的客戶資料清單 */
+  const existingCustomerNames = new Set(DB.customers.map(c=>c.name));
+  DB.optionLists.filter(x=>x.listKey==='customer').forEach(x=>{
+    if(x.name && !existingCustomerNames.has(x.name)){
+      DB.customers.push({id:uid(), name:x.name, sortOrder: nextSortOrder(DB.customers)});
+      existingCustomerNames.add(x.name);
+      seededNew = true;
+    }
+  });
+  /* 把既有機台用過的噸位，自動補進「系統管理」可編輯清單 */
   const existingCapacities = new Set(DB.optionLists.filter(x=>x.listKey==='capacity').map(x=>x.name));
   DB.machines.forEach(m=>{
-    if(m.customer && m.customer.trim() && !existingCustomers.has(m.customer.trim())){
-      DB.optionLists.push({id:uid(), listKey:'customer', name:m.customer.trim(), sortOrder: nextSortOrder(DB.optionLists.filter(x=>x.listKey==='customer'))});
-      existingCustomers.add(m.customer.trim());
+    if(m.customer && m.customer.trim() && !existingCustomerNames.has(m.customer.trim())){
+      DB.customers.push({id:uid(), name:m.customer.trim(), sortOrder: nextSortOrder(DB.customers)});
+      existingCustomerNames.add(m.customer.trim());
       seededNew = true;
     }
     if(m.capacity && m.capacity.trim() && !existingCapacities.has(m.capacity.trim())){
@@ -596,6 +608,7 @@ async function saveData(){
     if(DB.issueTypes.length) ops.push(sb.from('issue_types').upsert(DB.issueTypes.map(toSnakeRow)));
     if(DB.todos.length) ops.push(sb.from('todos').upsert(DB.todos.map(toSnakeRow)));
     if(DB.optionLists.length) ops.push(sb.from('option_lists').upsert(DB.optionLists.map(toSnakeRow)));
+    if(DB.customers.length) ops.push(sb.from('customers').upsert(DB.customers.map(toSnakeRow)));
     if(DB.settings && Object.keys(DB.settings).length) ops.push(sb.from('settings').upsert(toSnakeRow({id:'main', ...DB.settings})));
     const results = await Promise.all(ops);
     const failed = results.find(r=>r.error);
@@ -615,6 +628,7 @@ function showToast(msg, isErr){
 function getMachine(id){ return DB.machines.find(m=>m.id===id); }
 function getPart(id){ return DB.parts.find(p=>p.id===id); }
 function getVendor(id){ return DB.vendors.find(v=>v.id===id); }
+function getCustomer(id){ return DB.customers.find(c=>c.id===id); }
 function optionListValues(listKey){ return DB.optionLists.filter(x=>x.listKey===listKey && x.visible!==false).sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0)).map(x=>x.name); }
 function visibleBrandNames(){ return DB.brands.filter(b=>b.visible!==false).sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0)).map(b=>b.name); }
 function visibleIssueNames(){ return DB.issueTypes.filter(t=>t.visible!==false).sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0)).map(t=>t.name); }
@@ -630,6 +644,14 @@ function esc(s){ return (s??'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;',
 function val(id){ return document.getElementById(id).value; }
 function money(n){ return n? 'NT$'+Number(n).toLocaleString() : '—'; }
 function nextSortOrder(items){ return items.reduce((max,x)=>Math.max(max, x.sortOrder??0), 0) + 1; }
+function customerNames(){ return DB.customers.slice().sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0)).map(c=>c.name); }
+async function autoAddCustomer(name){
+  if(!name) return;
+  if(DB.customers.some(c=>c.name===name)) return;
+  const row = {id:uid(), name, phone:'', address:'', notes:'', sortOrder: nextSortOrder(DB.customers)};
+  const err = await upsertRow('customers', row);
+  if(!err) DB.customers.push(row);
+}
 
 /* ---------- 自訂搜尋式下拉選單元件 ---------- */
 function setupCombo(inputId, getOptions, onSelect){
@@ -741,6 +763,7 @@ const ICONS = {
   tag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.6 12.3L12.3 20.6a1.5 1.5 0 01-2.1 0l-7-7a1.5 1.5 0 010-2.1L11.5 3.2A1.5 1.5 0 0112.6 2.8L20 3l.2 7.4a1.5 1.5 0 01-.4 1.1z"/><circle cx="15.5" cy="8.5" r="1.5"/></svg>',
   arrowUp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
   arrowDown:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12l7 7 7-7"/></svg>',
+  users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
 };
 
 /* ============================= NAV DEFINITION ============================= */
@@ -764,6 +787,7 @@ const NAV = [
       return n>0? n : null;
     }},
   {view:'vendors', label:'維修廠商', icon:ICONS.building},
+  {view:'customers', label:'客戶資料', icon:ICONS.users},
   {section:'管理'},
   {view:'reports', label:'統計報表', icon:ICONS.chart},
   {view:'settings', label:'設定', icon:ICONS.gear},
@@ -820,6 +844,7 @@ const TITLES = {
   systemLists:['系統管理','管理系統中各種下拉選單的選項內容'],
   parts:['零件管理','管理零件庫存、價格與供應商'],
   vendors:['維修廠商','管理配合的零件供應商與外包廠商'],
+  customers:['客戶資料','管理客戶聯絡資訊，例如地址、電話'],
   reports:['統計報表','掌握維修成本、機台狀態與客戶趨勢'],
   settings:['設定','公司資訊與資料管理'],
 };
@@ -834,7 +859,7 @@ function render(){
   document.getElementById('topbarActions').innerHTML = '';
   const fns = {
     dashboard:renderDashboard, machines:renderMachines, repairs:renderRepairs,
-    maintenance:renderMaintenance, systemLists:renderSystemLists, parts:renderParts, vendors:renderVendors,
+    maintenance:renderMaintenance, systemLists:renderSystemLists, parts:renderParts, vendors:renderVendors, customers:renderCustomers,
     reports:renderReports, settings:renderSettings,
   };
   (fns[currentView]||renderDashboard)();
@@ -884,7 +909,7 @@ function wireTodoSection(){
   const btn = document.getElementById('todoAddBtn');
   if(!btn) return;
   btn.addEventListener('click', addTodo);
-  setupCombo('todoCustomer', ()=>optionListValues('customer'));
+  setupCombo('todoCustomer', ()=>customerNames());
   setupCombo('todoIssue', ()=>visibleIssueNames());
   ['todoCustomer','todoIssue'].forEach(id=>{
     const el = document.getElementById(id);
@@ -903,6 +928,7 @@ async function addTodo(){
     const issueErr = await upsertRow('issue_types', newIssue);
     if(!issueErr) DB.issueTypes.push(newIssue);
   }
+  await autoAddCustomer(customer);
   DB.todos.unshift(row);
   showToast('已新增待辦事項');
   renderDashboard();
@@ -1112,7 +1138,7 @@ function openMachineForm(id, presetCustomer){
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveMachine('${id||''}')">${ICONS.check}儲存</button></div>
   `;
-  setupCombo('f_customer', ()=>optionListValues('customer'));
+  setupCombo('f_customer', ()=>customerNames());
   setupCombo('f_powerType', ()=>optionListValues('power_type'));
   setupCombo('f_brand', ()=>visibleBrandNames());
   setupCombo('f_capacity', ()=>optionListValues('capacity'));
@@ -1138,7 +1164,7 @@ async function saveMachine(id){
     const brandErr = await upsertRow('brands', newBrand);
     if(!brandErr) DB.brands.push(newBrand);
   }
-  await autoAddOptionListValue('customer', customer);
+  await autoAddCustomer(customer);
   await autoAddOptionListValue('capacity', capacityVal);
   if(id){ Object.assign(getMachine(id), data); showToast('已更新堆高機資料'); }
   else{ DB.machines.unshift(row); showToast('已新增堆高機'); currentDetailCustomer = customer; }
@@ -1636,20 +1662,8 @@ async function deleteMaintenance(id){
   rerenderMaintenanceViews();
 }
 
-/* ============================= SYSTEM LISTS (統一管理各種下拉選單) ============================= */
+/* ============================= SYSTEM LISTS (統一管理各種下拉選單，客戶資料改到獨立頁面管理) ============================= */
 const SYSTEM_LISTS = [
-  { key:'customer', label:'客戶名稱', table:'option_lists', extra:{listKey:'customer'},
-    getItems:()=>DB.optionLists.filter(x=>x.listKey==='customer'),
-    addItem:(row)=>DB.optionLists.push(row),
-    removeItem:(id)=>{ DB.optionLists = DB.optionLists.filter(x=>x.id!==id); },
-    onRename: async (oldName, newName)=>{
-      const affected = DB.machines.filter(m=>m.customer===oldName);
-      if(!affected.length) return '';
-      affected.forEach(m=>m.customer=newName);
-      const err = await upsertRows('machines', affected);
-      return err ? '，但同步機台資料失敗：'+err : '';
-    }
-  },
   { key:'powerType', label:'動力類型', table:'option_lists', extra:{listKey:'power_type'},
     getItems:()=>DB.optionLists.filter(x=>x.listKey==='power_type'),
     addItem:(row)=>DB.optionLists.push(row),
@@ -1982,6 +1996,80 @@ async function deleteVendor(id){
   if(error){ showToast('刪除失敗，請檢查網路連線', true); return; }
   DB.vendors = DB.vendors.filter(v=>v.id!==id);
   DB.parts.forEach(p=>{ if(p.vendorId===id) p.vendorId=null; });
+  showToast('已刪除'); render();
+}
+
+/* ============================= CUSTOMERS (客戶資料) ============================= */
+let customerFilters = { q:'' };
+function renderCustomers(){
+  document.getElementById('topbarActions').innerHTML = `<button class="btn btn-primary" onclick="openCustomerForm()">${ICONS.plus}新增客戶</button>`;
+  const c = document.getElementById('content');
+  const q = customerFilters.q.trim().toLowerCase();
+  const list = DB.customers.filter(x=> !q || [x.name,x.phone,x.address].join(' ').toLowerCase().includes(q))
+    .sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0));
+  c.innerHTML = `
+    <div class="toolbar"><div class="search-box">${ICONS.search}<input id="cuSearch" placeholder="搜尋客戶名稱 / 電話 / 地址" value="${esc(customerFilters.q)}"></div></div>
+    <div class="card">
+      ${list.length ? `
+      <table><thead><tr><th>客戶名稱</th><th>電話</th><th>地址</th><th>機台數</th><th style="width:96px"></th></tr></thead>
+      <tbody>${list.map(x=>{
+        const machineCount = DB.machines.filter(m=>m.customer===x.name).length;
+        return `<tr><td class="cell-strong">${esc(x.name)}</td><td class="mono">${esc(x.phone||'—')}</td><td>${esc(x.address||'—')}</td><td class="mono">${machineCount} 台</td>
+        <td><div class="row-actions"><button class="icon-btn" title="編輯" onclick="openCustomerForm('${x.id}')">${ICONS.edit}</button><button class="icon-btn" title="刪除" onclick="deleteCustomer('${x.id}')">${ICONS.trash}</button></div></td></tr>`;
+      }).join('')}</tbody></table>` : `<div class="empty">${ICONS.users}<div class="msg">尚未建立任何客戶資料</div><div class="hint">新增客戶後，堆高機表單的客戶名稱就能直接下拉選擇</div></div>`}
+    </div>
+  `;
+  document.getElementById('cuSearch').oninput = e=>{ customerFilters.q=e.target.value; renderCustomers(); preserveFocus('cuSearch'); };
+}
+function openCustomerForm(id){
+  const x = id ? getCustomer(id) : null;
+  document.getElementById('modalBox').innerHTML = `
+    <div class="modal-head"><h2>${x?'編輯客戶':'新增客戶'}</h2><div class="modal-close" onclick="closeModal()">✕</div></div>
+    <div class="modal-body">
+      <div class="field"><label>客戶名稱 <span class="req">*</span></label><input id="f_custName" value="${esc(x?.name||'')}" placeholder="例如 大成物流"></div>
+      <div class="form-row">
+        <div class="field"><label>電話</label><input id="f_custPhone" value="${esc(x?.phone||'')}" placeholder="例如 02-1234-5678"></div>
+        <div class="field"><label>地址</label><input id="f_custAddress" value="${esc(x?.address||'')}" placeholder="客戶地址"></div>
+      </div>
+      <div class="field"><label>備註</label><textarea id="f_custNotes" placeholder="其他補充資訊">${esc(x?.notes||'')}</textarea></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveCustomer('${id||''}')">${ICONS.check}儲存</button></div>
+  `;
+  openModal();
+}
+async function saveCustomer(id){
+  const name = val('f_custName').trim();
+  if(!name){ showToast('請填寫客戶名稱', true); return; }
+  const dup = DB.customers.find(x=>x.name===name && x.id!==id);
+  if(dup){ showToast('這個客戶名稱已經存在', true); return; }
+  const data = { name, phone:val('f_custPhone').trim(), address:val('f_custAddress').trim(), notes:val('f_custNotes').trim() };
+  const old = id ? getCustomer(id) : null;
+  const row = id ? { id, ...data, sortOrder: old.sortOrder ?? 0 } : { id: uid(), ...data, sortOrder: nextSortOrder(DB.customers) };
+  const err = await upsertRow('customers', row);
+  if(err){ showToast('儲存失敗：'+err, true); return; }
+  let msg = id ? '已更新客戶資料' : '已新增客戶', isErr = false;
+  if(id){
+    const oldName = old.name;
+    Object.assign(old, row);
+    if(oldName !== name){
+      const affected = DB.machines.filter(m=>m.customer===oldName);
+      if(affected.length){
+        affected.forEach(m=>m.customer=name);
+        const machErr = await upsertRows('machines', affected);
+        if(machErr){ msg += '，但同步機台資料失敗：'+machErr; isErr = true; }
+      }
+    }
+  }else{
+    DB.customers.push(row);
+  }
+  showToast(msg, isErr);
+  closeModal(); render();
+}
+async function deleteCustomer(id){
+  if(!confirm('確定要刪除這位客戶嗎？已使用此客戶名稱的堆高機資料不會被刪除，但客戶名稱欄位需要重新選擇。')) return;
+  const { error } = await sb.from('customers').delete().eq('id', id);
+  if(error){ showToast('刪除失敗，請檢查網路連線', true); return; }
+  DB.customers = DB.customers.filter(x=>x.id!==id);
   showToast('已刪除'); render();
 }
 
