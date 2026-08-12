@@ -630,6 +630,7 @@ function getMachine(id){ return DB.machines.find(m=>m.id===id); }
 function getPart(id){ return DB.parts.find(p=>p.id===id); }
 function getVendor(id){ return DB.vendors.find(v=>v.id===id); }
 function getCustomer(id){ return DB.customers.find(c=>c.id===id); }
+function customerTaxIdByName(name){ const c = DB.customers.find(x=>x.name===name); return c ? (c.taxId||'') : ''; }
 function optionListValues(listKey){ return DB.optionLists.filter(x=>x.listKey===listKey && x.visible!==false).sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0)).map(x=>x.name); }
 function visibleBrandNames(){ return DB.brands.filter(b=>b.visible!==false).sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0)).map(b=>b.name); }
 function visibleIssueNames(){ return DB.issueTypes.filter(t=>t.visible!==false).sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0)).map(t=>t.name); }
@@ -1048,11 +1049,12 @@ function renderMachines(){
     </div>
     <div class="card">
       ${customers.length ? `
-      <table><thead><tr><th>客戶名稱</th><th>機台數量</th><th style="width:96px"></th></tr></thead>
+      <table><thead><tr><th>客戶名稱</th><th>統一編號</th><th>機台數量</th><th style="width:96px"></th></tr></thead>
       <tbody>${customers.map(name=>{
         const list = groups[name];
         return `<tr class="customer-row" data-customer="${esc(name)}" style="cursor:pointer">
           <td class="cell-strong">${esc(name)}</td>
+          <td class="mono">${esc(customerTaxIdByName(name)||'—')}</td>
           <td class="mono">${list.length} 台</td>
           <td><div class="row-actions"><button class="icon-btn view-customer-btn" data-customer="${esc(name)}" title="查看車輛">${ICONS.eye}</button></div></td>
         </tr>`;
@@ -1258,11 +1260,12 @@ function renderRepairs(){
     </div>
     <div class="card">
       ${customers.length ? `
-      <table><thead><tr><th>客戶名稱</th><th>機台數量</th><th style="width:96px"></th></tr></thead>
+      <table><thead><tr><th>客戶名稱</th><th>統一編號</th><th>機台數量</th><th style="width:96px"></th></tr></thead>
       <tbody>${customers.map(name=>{
         const list = groups[name];
         return `<tr class="rc-row" data-customer="${esc(name)}" style="cursor:pointer">
           <td class="cell-strong">${esc(name)}</td>
+          <td class="mono">${esc(customerTaxIdByName(name)||'—')}</td>
           <td class="mono">${list.length} 台</td>
           <td><div class="row-actions"><button class="icon-btn rc-view-btn" data-customer="${esc(name)}" title="查看車輛">${ICONS.eye}</button></div></td>
         </tr>`;
@@ -1500,11 +1503,12 @@ function renderMaintenance(){
     </div>
     <div class="card">
       ${customers.length ? `
-      <table><thead><tr><th>客戶名稱</th><th>機台數量</th><th style="width:96px"></th></tr></thead>
+      <table><thead><tr><th>客戶名稱</th><th>統一編號</th><th>機台數量</th><th style="width:96px"></th></tr></thead>
       <tbody>${customers.map(name=>{
         const list = groups[name];
         return `<tr class="mtc-row" data-customer="${esc(name)}" style="cursor:pointer">
           <td class="cell-strong">${esc(name)}</td>
+          <td class="mono">${esc(customerTaxIdByName(name)||'—')}</td>
           <td class="mono">${list.length} 台</td>
           <td><div class="row-actions"><button class="icon-btn mtc-view-btn" data-customer="${esc(name)}" title="查看車輛">${ICONS.eye}</button></div></td>
         </tr>`;
