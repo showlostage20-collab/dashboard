@@ -532,6 +532,29 @@ async function loadData(){
       seededNew = true;
     }
   });
+  /* 把既有機台用過的客戶名稱／噸位、既有維修紀錄用過的技師，自動補進「系統管理」可編輯清單 */
+  const existingCustomers = new Set(DB.optionLists.filter(x=>x.listKey==='customer').map(x=>x.name));
+  const existingCapacities = new Set(DB.optionLists.filter(x=>x.listKey==='capacity').map(x=>x.name));
+  DB.machines.forEach(m=>{
+    if(m.customer && m.customer.trim() && !existingCustomers.has(m.customer.trim())){
+      DB.optionLists.push({id:uid(), listKey:'customer', name:m.customer.trim()});
+      existingCustomers.add(m.customer.trim());
+      seededNew = true;
+    }
+    if(m.capacity && m.capacity.trim() && !existingCapacities.has(m.capacity.trim())){
+      DB.optionLists.push({id:uid(), listKey:'capacity', name:m.capacity.trim()});
+      existingCapacities.add(m.capacity.trim());
+      seededNew = true;
+    }
+  });
+  const existingTechnicians = new Set(DB.optionLists.filter(x=>x.listKey==='technician').map(x=>x.name));
+  DB.repairs.forEach(r=>{
+    if(r.technician && r.technician.trim() && !existingTechnicians.has(r.technician.trim())){
+      DB.optionLists.push({id:uid(), listKey:'technician', name:r.technician.trim()});
+      existingTechnicians.add(r.technician.trim());
+      seededNew = true;
+    }
+  });
   if(seededNew) await saveData();
 }
 async function saveData(){
@@ -568,6 +591,14 @@ function getVendor(id){ return DB.vendors.find(v=>v.id===id); }
 function optionListValues(listKey){ return DB.optionLists.filter(x=>x.listKey===listKey && x.visible!==false).map(x=>x.name).sort((a,b)=>a.localeCompare(b,'zh-Hant')); }
 function visibleBrandNames(){ return DB.brands.filter(b=>b.visible!==false).map(b=>b.name).sort((a,b)=>a.localeCompare(b,'zh-Hant')); }
 function visibleIssueNames(){ return DB.issueTypes.filter(t=>t.visible!==false).map(t=>t.name).sort((a,b)=>a.localeCompare(b,'zh-Hant')); }
+/* 輸入框打了下拉選單裡沒有的新值時，自動補進「系統管理」對應的選項清單 */
+async function autoAddOptionListValue(listKey, value){
+  if(!value) return;
+  if(DB.optionLists.some(x=>x.listKey===listKey && x.name===value)) return;
+  const row = {id:uid(), listKey, name:value, visible:true};
+  const err = await upsertRow('option_lists', row);
+  if(!err) DB.optionLists.push(row);
+}
 function esc(s){ return (s??'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function val(id){ return document.getElementById(id).value; }
 function money(n){ return n? 'NT$'+Number(n).toLocaleString() : '—'; }
@@ -991,7 +1022,6 @@ function renderCustomerDetail(){
 
 function openMachineForm(id, presetCustomer){
   const m = id ? getMachine(id) : null;
-  const customerNames = [...new Set(DB.machines.map(x=>x.customer).filter(Boolean))];
   document.getElementById('modalBox').innerHTML = `
     <div class="modal-head"><h2>${m?'編輯堆高機':'新增堆高機'}</h2><div class="modal-close" onclick="closeModal()">✕</div></div>
     <div class="modal-body">
@@ -999,7 +1029,7 @@ function openMachineForm(id, presetCustomer){
         <div class="field"><label>機號 <span class="req">*</span></label><input id="f_machineNo" value="${esc(m?.machineNo||'')}" placeholder="例如 8FD30-12345"></div>
         <div class="field"><label>客戶名稱 <span class="req">*</span></label>
           <input id="f_customer" list="f_customer_list" value="${esc(m?.customer || presetCustomer || '')}" placeholder="搜尋或輸入客戶名稱" autocomplete="off">
-          <datalist id="f_customer_list">${customerNames.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+          <datalist id="f_customer_list">${optionListValues('customer').map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
         </div>
       </div>
       <div class="form-row">
@@ -1018,7 +1048,10 @@ function openMachineForm(id, presetCustomer){
       </div>
       <div class="form-row">
         <div class="field"><label>引擎號碼</label><input id="f_engineNo" value="${esc(m?.engineNo||'')}" placeholder="選填"></div>
-        <div class="field"><label>噸位 / 承重</label><input id="f_capacity" value="${esc(m?.capacity||'')}" placeholder="例如 3.0 噸"></div>
+        <div class="field"><label>噸位 / 承重</label>
+          <input id="f_capacity" list="f_capacity_list" value="${esc(m?.capacity||'')}" placeholder="搜尋或輸入噸位" autocomplete="off">
+          <datalist id="f_capacity_list">${optionListValues('capacity').map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+        </div>
       </div>
       <div class="field"><label>備註</label><textarea id="f_notes" placeholder="其他補充資訊">${esc(m?.notes||'')}</textarea></div>
     </div>
@@ -1035,8 +1068,9 @@ async function saveMachine(id){
   const machineNo = val('f_machineNo').trim(), customer = val('f_customer').trim();
   if(!machineNo || !customer){ showToast('請填寫機號與客戶名稱', true); return; }
   const brandVal = val('f_brand').trim();
+  const capacityVal = val('f_capacity').trim();
   const data = { machineNo, customer, deliveryDate:val('f_deliveryDate'), powerType:val('f_powerType').trim(), brand:brandVal,
-    model:val('f_model').trim(), engineNo:val('f_engineNo').trim(), capacity:val('f_capacity').trim(), notes:val('f_notes').trim() };
+    model:val('f_model').trim(), engineNo:val('f_engineNo').trim(), capacity:capacityVal, notes:val('f_notes').trim() };
   const row = id ? { ...data, id } : { ...data, id: uid(), createdAt: todayISO() };
   const err = await upsertRow('machines', row);
   if(err){ showToast('儲存失敗：'+err, true); return; }
@@ -1045,6 +1079,8 @@ async function saveMachine(id){
     const brandErr = await upsertRow('brands', newBrand);
     if(!brandErr) DB.brands.push(newBrand);
   }
+  await autoAddOptionListValue('customer', customer);
+  await autoAddOptionListValue('capacity', capacityVal);
   if(id){ Object.assign(getMachine(id), data); showToast('已更新堆高機資料'); }
   else{ DB.machines.unshift(row); showToast('已新增堆高機'); currentDetailCustomer = customer; }
   closeModal(); rerenderMachineViews();
@@ -1291,7 +1327,10 @@ function openRepairForm(id, presetMachineId){
       </div>
       <div class="form-row">
         <div class="field"><label>費用 (NT$)</label><input type="number" id="f_cost" value="${r?.cost||''}" placeholder="0"></div>
-        <div class="field"><label>負責技師</label><input id="f_technician" value="${esc(r?.technician||'')}" placeholder="例如：陳師傅"></div>
+        <div class="field"><label>負責技師</label>
+          <input id="f_technician" list="f_technician_list" value="${esc(r?.technician||'')}" placeholder="搜尋或輸入技師姓名" autocomplete="off">
+          <datalist id="f_technician_list">${optionListValues('technician').map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+        </div>
       </div>
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveRepair('${id||''}')">${ICONS.check}儲存</button></div>
@@ -1318,6 +1357,7 @@ async function saveRepair(id){
     const issueErr = await upsertRow('issue_types', newIssue);
     if(!issueErr) DB.issueTypes.push(newIssue);
   }
+  await autoAddOptionListValue('technician', data.technician);
 
   const oldPartsUsed = old ? (old.partsUsed||[]) : [];
   const affectedIds = new Set([...oldPartsUsed.map(p=>p.partId), ...partsUsed.map(p=>p.partId)]);
@@ -1537,6 +1577,23 @@ async function deleteMaintenance(id){
 
 /* ============================= SYSTEM LISTS (統一管理各種下拉選單) ============================= */
 const SYSTEM_LISTS = [
+  { key:'customer', label:'客戶名稱', table:'option_lists', extra:{listKey:'customer'},
+    getItems:()=>DB.optionLists.filter(x=>x.listKey==='customer'),
+    addItem:(row)=>DB.optionLists.push(row),
+    removeItem:(id)=>{ DB.optionLists = DB.optionLists.filter(x=>x.id!==id); },
+    onRename: async (oldName, newName)=>{
+      const affected = DB.machines.filter(m=>m.customer===oldName);
+      if(!affected.length) return '';
+      affected.forEach(m=>m.customer=newName);
+      const err = await upsertRows('machines', affected);
+      return err ? '，但同步機台資料失敗：'+err : '';
+    }
+  },
+  { key:'powerType', label:'動力類型', table:'option_lists', extra:{listKey:'power_type'},
+    getItems:()=>DB.optionLists.filter(x=>x.listKey==='power_type'),
+    addItem:(row)=>DB.optionLists.push(row),
+    removeItem:(id)=>{ DB.optionLists = DB.optionLists.filter(x=>x.id!==id); },
+  },
   { key:'brand', label:'廠牌', table:'brands', extra:{},
     getItems:()=>DB.brands,
     addItem:(row)=>DB.brands.push(row),
@@ -1548,6 +1605,11 @@ const SYSTEM_LISTS = [
       const err = await upsertRows('machines', affected);
       return err ? '，但同步機台資料失敗：'+err : '';
     }
+  },
+  { key:'capacity', label:'噸位', table:'option_lists', extra:{listKey:'capacity'},
+    getItems:()=>DB.optionLists.filter(x=>x.listKey==='capacity'),
+    addItem:(row)=>DB.optionLists.push(row),
+    removeItem:(id)=>{ DB.optionLists = DB.optionLists.filter(x=>x.id!==id); },
   },
   { key:'issueType', label:'問題描述', table:'issue_types', extra:{},
     getItems:()=>DB.issueTypes,
@@ -1570,10 +1632,17 @@ const SYSTEM_LISTS = [
       return extraMsg;
     }
   },
-  { key:'powerType', label:'動力類型', table:'option_lists', extra:{listKey:'power_type'},
-    getItems:()=>DB.optionLists.filter(x=>x.listKey==='power_type'),
+  { key:'technician', label:'負責技師', table:'option_lists', extra:{listKey:'technician'},
+    getItems:()=>DB.optionLists.filter(x=>x.listKey==='technician'),
     addItem:(row)=>DB.optionLists.push(row),
     removeItem:(id)=>{ DB.optionLists = DB.optionLists.filter(x=>x.id!==id); },
+    onRename: async (oldName, newName)=>{
+      const affected = DB.repairs.filter(r=>r.technician===oldName);
+      if(!affected.length) return '';
+      affected.forEach(r=>r.technician=newName);
+      const err = await upsertRows('repairs', affected);
+      return err ? '，但同步維修紀錄失敗：'+err : '';
+    }
   },
   { key:'maintenanceType', label:'保養類型', table:'option_lists', extra:{listKey:'maintenance_type'},
     getItems:()=>DB.optionLists.filter(x=>x.listKey==='maintenance_type'),
