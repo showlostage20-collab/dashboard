@@ -94,10 +94,10 @@
   .sidebar.collapsed .collapse-toggle svg{transform:rotate(180deg);}
   .collapse-toggle:hover{background:var(--blue-dark);}
 
-  .nav{display:flex;flex-direction:column;gap:3px;flex:1;overflow-y:auto;overflow-x:hidden;}
+  .nav{display:flex;flex-direction:column;gap:3px;flex:1;overflow-y:auto;overflow-x:hidden;min-width:0;}
   .nav-section-label{
     font-size:10.5px;color:#4c5470;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
-    padding:14px 12px 6px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    padding:14px 12px 6px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;
   }
   .sidebar.collapsed .nav-section-label{opacity:0;height:0;padding:6px 0 0 0;overflow:hidden;}
   .nav-item{
@@ -105,7 +105,7 @@
     padding:10px 12px;border-radius:8px;
     cursor:pointer;color:#a7aec6;font-weight:500;
     transition:background .12s,color .12s;
-    user-select:none;position:relative;white-space:nowrap;
+    user-select:none;position:relative;white-space:nowrap;min-width:0;
   }
   .sidebar.collapsed .nav-item{justify-content:center;padding:11px 0;}
   .nav-item svg{width:18px;height:18px;flex-shrink:0;opacity:.85;}
