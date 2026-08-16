@@ -311,7 +311,7 @@
   .field .req{color:var(--red);}
   .modal-foot{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;}
 
-  .parts-picker-row{display:grid;grid-template-columns:1fr 90px 32px;gap:8px;align-items:center;margin-bottom:8px;}
+  .parts-picker-row{display:grid;grid-template-columns:1fr 70px 90px 32px;gap:8px;align-items:center;margin-bottom:8px;}
   .parts-picker-row select, .parts-picker-row input{padding:8px 10px;border:1px solid var(--border-strong);border-radius:7px;font-size:13px;font-family:var(--font-ui);}
   .parts-picker-remove{width:32px;height:32px;border-radius:7px;border:1px solid var(--border-strong);background:#fff;color:var(--red);display:flex;align-items:center;justify-content:center;cursor:pointer;}
   .parts-picker-remove:hover{background:var(--red-soft);}
@@ -1003,7 +1003,7 @@ function renderDashboard(){
           <table><thead><tr><th>日期</th><th>機台</th><th>客戶</th><th>問題描述</th><th>狀態</th></tr></thead>
           <tbody>${recentRepairs.map(r=>{
             const m = getMachine(r.machineId);
-            return `<tr><td class="mono">${esc(r.date)}</td><td class="cell-strong">${esc(m?m.machineNo:'—')}</td><td>${esc(m?m.customer:'—')}</td><td>${esc(r.issue)}</td><td>${statusBadge(r.status)}</td></tr>`;
+            return `<tr><td class="mono">${toROCDate(r.date)}</td><td class="cell-strong">${esc(m?m.machineNo:'—')}</td><td>${esc(m?m.customer:'—')}</td><td>${esc(r.issue)}</td><td>${statusBadge(r.status)}</td></tr>`;
           }).join('')}</tbody></table>` : `<div class="empty">${ICONS.wrench}<div class="msg">還沒有維修紀錄</div></div>`}
         </div>
       </div>
@@ -1227,9 +1227,9 @@ function renderMachineDetail(){
     <div class="section-title"><span>維修紀錄</span><button class="btn btn-primary btn-sm" onclick="openRepairForm(null,'${m.id}')">${ICONS.plus}新增維修紀錄</button></div>
     <div class="card">
       ${repairs.length ? `
-      <table><thead><tr><th>日期</th><th>問題描述</th><th>使用零件</th><th>費用</th><th style="width:80px"></th></tr></thead>
+      <table><thead><tr><th>日期</th><th>問題描述</th><th>里程/小時數</th><th>使用零件</th><th>費用</th><th style="width:80px"></th></tr></thead>
       <tbody>${repairs.map(r=>`
-        <tr><td class="mono">${esc(r.date)}</td><td>${esc(r.issue)}</td><td>${partsUsedSummary(r.partsUsed)}</td><td class="mono">${money(r.cost)}</td>
+        <tr><td class="mono">${toROCDate(r.date)}</td><td>${esc(r.issue)}</td><td class="mono">${r.mileage!=null?r.mileage:'—'}</td><td>${partsUsedSummary(r.partsUsed)}</td><td class="mono">${money(r.cost)}</td>
         <td><div class="row-actions"><button class="icon-btn" title="編輯" onclick="openRepairForm('${r.id}')">${ICONS.edit}</button><button class="icon-btn" title="刪除" onclick="deleteRepair('${r.id}')">${ICONS.trash}</button></div></td></tr>`).join('')}
       </tbody></table>` : `<div class="empty" style="padding:34px"><div class="msg">尚無維修紀錄</div></div>`}
     </div>
@@ -1301,7 +1301,7 @@ function renderRepairsCustomer(){
         const lastDate = machineRepairs.map(r=>r.date).filter(Boolean).sort().slice(-1)[0];
         return `<tr class="rm-row" data-id="${m.id}" style="cursor:pointer">
           <td class="mono cell-strong">${esc(m.machineNo||'—')}</td>
-          <td class="mono">${esc(lastDate||'—')}</td>
+          <td class="mono">${toROCDate(lastDate)}</td>
           <td>${esc(m.brand)} <span style="color:var(--text-faint)">${esc(m.model)}</span></td>
           <td class="mono">${cnt} 筆</td>
           <td><div class="row-actions"><button class="icon-btn rm-view-btn" data-id="${m.id}" title="查看維修紀錄">${ICONS.eye}</button></div></td>
@@ -1345,11 +1345,11 @@ function renderRepairsMachine(){
     </div>
     <div class="card">
       ${list.length ? `
-      <table><thead><tr><th>日期</th><th>問題描述</th><th>使用零件</th><th>費用</th><th>技師</th><th style="width:80px"></th></tr></thead>
+      <table><thead><tr><th>日期</th><th>問題描述</th><th>里程/小時數</th><th>使用零件</th><th>費用</th><th>技師</th><th style="width:80px"></th></tr></thead>
       <tbody>${list.map(r=>`
         <tr>
-          <td class="mono">${esc(r.date)}</td>
-          <td>${esc(r.issue)}</td><td>${partsUsedSummary(r.partsUsed)}</td><td class="mono">${money(r.cost)}</td>
+          <td class="mono">${toROCDate(r.date)}</td>
+          <td>${esc(r.issue)}</td><td class="mono">${r.mileage!=null?r.mileage:'—'}</td><td>${partsUsedSummary(r.partsUsed)}</td><td class="mono">${money(r.cost)}</td>
           <td>${esc(r.technician||'—')}</td>
           <td><div class="row-actions"><button class="icon-btn" title="編輯" onclick="openRepairForm('${r.id}')">${ICONS.edit}</button><button class="icon-btn" title="刪除" onclick="deleteRepair('${r.id}')">${ICONS.trash}</button></div></td>
         </tr>`).join('')}</tbody></table>` : `<div class="empty">${ICONS.wrench}<div class="msg">找不到符合條件的維修紀錄</div><div class="hint">試試調整搜尋條件，或新增第一筆維修紀錄</div></div>`}
@@ -1373,8 +1373,9 @@ function renderPartsPicker(){
     return `
     <div class="parts-picker-row">
       <div class="combo-wrap"><input id="partsRow_${i}" class="combo-input" value="${esc(p?partComboLabel(p):'')}" placeholder="搜尋零件" autocomplete="off"><div class="combo-panel" id="partsRow_${i}_panel"></div></div>
-      <input type="number" min="1" value="${row.qty}" oninput="currentRepairParts[${i}].qty=this.value">
-      <div class="parts-picker-remove" onclick="currentRepairParts.splice(${i},1); renderPartsPicker();">✕</div>
+      <input type="number" min="1" value="${row.qty}" placeholder="數量" oninput="currentRepairParts[${i}].qty=this.value; updateRepairCostPreview();">
+      <input type="number" min="0" value="${row.amount||''}" placeholder="金額" oninput="currentRepairParts[${i}].amount=this.value; updateRepairCostPreview();">
+      <div class="parts-picker-remove" onclick="currentRepairParts.splice(${i},1); renderPartsPicker(); updateRepairCostPreview();">✕</div>
     </div>
   `;
   }).join('') || `<div style="font-size:12.5px;color:var(--text-faint)">尚未加入零件，點下方按鈕新增</div>`;
@@ -1386,7 +1387,26 @@ function handlePartRowInput(i, v){
   const match = DB.parts.find(p=>partComboLabel(p)===v);
   currentRepairParts[i].partId = match ? match.id : '';
 }
-function addPartRow(){ currentRepairParts.push({partId:'', qty:1}); renderPartsPicker(); }
+function addPartRow(){ currentRepairParts.push({partId:'', qty:1, amount:''}); renderPartsPicker(); }
+function updateRepairCostPreview(){
+  const partsTotal = currentRepairParts.reduce((sum,p)=> sum + (Number(p.amount)||0), 0);
+  const laborEl = document.getElementById('f_labor');
+  const labor = laborEl ? (Number(laborEl.value)||0) : 0;
+  const costEl = document.getElementById('f_cost');
+  if(costEl) costEl.value = partsTotal + labor;
+}
+function toROCDate(isoDate){
+  if(!isoDate) return '—';
+  const parts = isoDate.split('-');
+  if(parts.length<3) return isoDate;
+  const rocYear = Number(parts[0]) - 1911;
+  if(!rocYear) return isoDate;
+  return `民國${rocYear}/${parts[1]}/${parts[2]}`;
+}
+function updateRocDatePreview(){
+  const el = document.getElementById('f_date_roc');
+  if(el) el.textContent = toROCDate(val('f_date'));
+}
 
 function openRepairForm(id, presetMachineId){
   const r = id ? DB.repairs.find(x=>x.id===id) : null;
@@ -1403,23 +1423,30 @@ function openRepairForm(id, presetMachineId){
         </div>
       </div>
       <div class="form-row">
-        <div class="field"><label>維修日期 <span class="req">*</span></label><input type="date" id="f_date" value="${r?.date||todayISO()}"></div>
-        <div class="field"><label>狀態</label><select id="f_status">${['待處理','處理中','已完成','已取消'].map(s=>`<option ${r?.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+        <div class="field"><label>維修日期 <span class="req">*</span></label>
+          <input type="date" id="f_date" value="${r?.date||todayISO()}" oninput="updateRocDatePreview()">
+          <div id="f_date_roc" style="font-size:11px;color:var(--text-faint);margin-top:4px;font-family:var(--font-mono)">${toROCDate(r?.date||todayISO())}</div>
+        </div>
+        <div class="field"><label>里程 / 小時數</label><input type="number" id="f_mileage" value="${r?.mileage??''}" placeholder="輸入機台里程或小時數"></div>
       </div>
       <div class="field"><label>問題描述 <span class="req">*</span></label>
         <div class="combo-wrap"><input id="f_issue" class="combo-input" value="${esc(r?.issue||'')}" placeholder="搜尋或輸入新問題" autocomplete="off"><div class="combo-panel" id="f_issue_panel"></div></div>
       </div>
       <div class="field"><label>處理方式</label><textarea id="f_action" placeholder="例如：更換油封、清洗油路">${esc(r?.action||'')}</textarea></div>
       <div class="field">
-        <label>使用零件（自動扣減庫存）</label>
+        <label>使用零件（自動扣減庫存，可手動填入個別金額）</label>
+        <div style="display:grid;grid-template-columns:1fr 70px 90px 32px;gap:8px;font-size:11px;color:var(--text-muted);padding:0 2px 4px 2px;">
+          <div>零件</div><div>數量</div><div>金額</div><div></div>
+        </div>
         <div id="partsPickerRows"></div>
         <button type="button" class="btn btn-ghost btn-sm" onclick="addPartRow()">${ICONS.plus}加入零件</button>
       </div>
       <div class="form-row">
-        <div class="field"><label>費用 (NT$)</label><input type="number" id="f_cost" value="${r?.cost||''}" placeholder="0"></div>
-        <div class="field"><label>負責技師</label>
-          <div class="combo-wrap"><input id="f_technician" class="combo-input" value="${esc(r?.technician||'')}" placeholder="搜尋或輸入技師姓名" autocomplete="off"><div class="combo-panel" id="f_technician_panel"></div></div>
-        </div>
+        <div class="field"><label>工資 (NT$)</label><input type="number" id="f_labor" value="${r?.labor||''}" placeholder="0" oninput="updateRepairCostPreview()"></div>
+        <div class="field"><label>費用 (NT$，自動計算)</label><input type="number" id="f_cost" value="${r?.cost||0}" disabled style="background:var(--gray-soft);color:var(--text-muted);"></div>
+      </div>
+      <div class="field"><label>負責技師</label>
+        <div class="combo-wrap"><input id="f_technician" class="combo-input" value="${esc(r?.technician||'')}" placeholder="搜尋或輸入技師姓名" autocomplete="off"><div class="combo-panel" id="f_technician_panel"></div></div>
       </div>
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveRepair('${id||''}')">${ICONS.check}儲存</button></div>
@@ -1427,6 +1454,7 @@ function openRepairForm(id, presetMachineId){
   setupCombo('f_issue', ()=>visibleIssueNames());
   setupCombo('f_technician', ()=>optionListValues('technician'));
   renderPartsPicker();
+  updateRepairCostPreview();
   openModal();
 }
 async function saveRepair(id){
@@ -1434,9 +1462,12 @@ async function saveRepair(id){
   const issueVal = val('f_issue').trim();
   if(!machineId){ showToast('找不到關聯機台，請從機台頁面新增維修紀錄', true); return; }
   if(!date || !issueVal){ showToast('請填寫維修日期與問題描述', true); return; }
-  const partsUsed = currentRepairParts.filter(p=>p.partId && Number(p.qty)>0).map(p=>({partId:p.partId, qty:Number(p.qty)}));
-  const data = { machineId, date, issue:issueVal, action:val('f_action').trim(), partsUsed,
-    cost: val('f_cost') ? Number(val('f_cost')) : null, technician: val('f_technician').trim(), status: val('f_status') };
+  const partsUsed = currentRepairParts.filter(p=>p.partId && Number(p.qty)>0).map(p=>({partId:p.partId, qty:Number(p.qty), amount:Number(p.amount)||0}));
+  const laborVal = val('f_labor') ? Number(val('f_labor')) : 0;
+  const partsTotal = partsUsed.reduce((sum,p)=>sum+p.amount,0);
+  const mileageVal = val('f_mileage') ? Number(val('f_mileage')) : null;
+  const data = { machineId, date, issue:issueVal, action:val('f_action').trim(), partsUsed, mileage:mileageVal, labor:laborVal,
+    cost: partsTotal + laborVal, technician: val('f_technician').trim(), status: val('f_status') };
   const old = id ? DB.repairs.find(x=>x.id===id) : null;
   const row = id ? { ...data, id } : { ...data, id: uid() };
 
