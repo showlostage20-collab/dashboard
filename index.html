@@ -306,6 +306,19 @@
   .combo-option:hover{background:var(--gray-soft);}
   .combo-option.selected{background:var(--blue);color:#fff;}
   .combo-empty{padding:9px 12px;font-size:12.5px;color:var(--text-faint);}
+
+  /* ---------- ROC (民國) date picker ---------- */
+  .roc-date-group{display:flex;align-items:center;gap:4px;}
+  .roc-date-group input{
+    border:1px solid var(--border-strong);border-radius:8px;padding:10px 8px;text-align:center;
+    font-family:var(--font-mono);font-size:13.5px;background:#fff;color:var(--text);min-width:0;
+  }
+  .roc-date-group input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft);}
+  .roc-date-group input.roc-date-y{flex:1.2;}
+  .roc-date-group input.roc-date-m{flex:1;}
+  .roc-date-group input.roc-date-d{flex:1;}
+  .roc-date-sep{color:var(--text-faint);font-weight:700;}
+  .roc-date-unit{font-size:12px;color:var(--text-faint);white-space:nowrap;}
   .field textarea{resize:vertical;min-height:64px;font-family:var(--font-ui);}
   .field input:focus, .field select:focus, .field textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft);}
   .field .req{color:var(--red);}
@@ -1120,7 +1133,7 @@ function openMachineForm(id, presetCustomer){
         </div>
       </div>
       <div class="form-row">
-        <div class="field"><label>交車日期</label><input type="date" id="f_deliveryDate" value="${esc(m?.deliveryDate||'')}"><div id="f_deliveryDate_roc" style="font-size:11px;color:var(--text-faint);margin-top:4px;font-family:var(--font-mono)"></div></div>
+        <div class="field"><label>交車日期</label>${rocDateFieldHTML('f_deliveryDate', m?.deliveryDate||'')}</div>
         <div class="field"><label>動力類型</label>
           <div class="combo-wrap"><input id="f_powerType" class="combo-input" value="${esc(m?.powerType||'')}" placeholder="搜尋或選擇動力類型" autocomplete="off"><div class="combo-panel" id="f_powerType_panel"></div></div>
         </div>
@@ -1145,7 +1158,6 @@ function openMachineForm(id, presetCustomer){
   setupCombo('f_powerType', ()=>optionListValues('power_type'));
   setupCombo('f_brand', ()=>visibleBrandNames());
   setupCombo('f_capacity', ()=>optionListValues('capacity'));
-  attachRocPreview('f_deliveryDate', 'f_deliveryDate_roc');
   openModal();
 }
 function rerenderMachineViews(){
@@ -1158,7 +1170,7 @@ async function saveMachine(id){
   if(!machineNo || !customer){ showToast('請填寫機號與客戶名稱', true); return; }
   const brandVal = val('f_brand').trim();
   const capacityVal = val('f_capacity').trim();
-  const data = { machineNo, customer, deliveryDate:val('f_deliveryDate'), powerType:val('f_powerType').trim(), brand:brandVal,
+  const data = { machineNo, customer, deliveryDate:rocDateVal('f_deliveryDate'), powerType:val('f_powerType').trim(), brand:brandVal,
     model:val('f_model').trim(), engineNo:val('f_engineNo').trim(), capacity:capacityVal, notes:val('f_notes').trim() };
   const row = id ? { ...data, id } : { ...data, id: uid(), createdAt: todayISO() };
   const err = await upsertRow('machines', row);
@@ -1404,17 +1416,36 @@ function toROCDate(isoDate){
   if(!rocYear) return isoDate;
   return `${rocYear}/${parts[1]}/${parts[2]}`;
 }
-function updateRocDatePreview(){
-  const el = document.getElementById('f_date_roc');
-  if(el) el.textContent = toROCDate(val('f_date'));
+function isoToRocParts(iso){
+  if(!iso) return {y:'',m:'',d:''};
+  const p = iso.split('-');
+  if(p.length<3) return {y:'',m:'',d:''};
+  return { y: Number(p[0])-1911, m: Number(p[1]), d: Number(p[2]) };
 }
-function attachRocPreview(inputId, previewId){
-  const inputEl = document.getElementById(inputId);
-  const previewEl = document.getElementById(previewId);
-  if(!inputEl || !previewEl) return;
-  const update = ()=>{ previewEl.textContent = inputEl.value ? toROCDate(inputEl.value) : ''; };
-  inputEl.addEventListener('input', update);
-  update();
+function rocPartsToIso(y,m,d){
+  y = Number(y); m = Number(m); d = Number(d);
+  if(!y || !m || !d) return '';
+  const gy = y + 1911;
+  return `${gy}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function rocDateFieldHTML(prefix, isoValue){
+  const {y,m,d} = isoToRocParts(isoValue);
+  return `
+    <div class="roc-date-group">
+      <input type="number" id="${prefix}_y" class="roc-date-y" placeholder="年" value="${y||''}">
+      <span class="roc-date-sep">/</span>
+      <input type="number" id="${prefix}_m" class="roc-date-m" placeholder="月" min="1" max="12" value="${m||''}">
+      <span class="roc-date-sep">/</span>
+      <input type="number" id="${prefix}_d" class="roc-date-d" placeholder="日" min="1" max="31" value="${d||''}">
+      <span class="roc-date-unit">民國年</span>
+    </div>
+  `;
+}
+function rocDateVal(prefix){
+  const y = document.getElementById(prefix+'_y')?.value;
+  const m = document.getElementById(prefix+'_m')?.value;
+  const d = document.getElementById(prefix+'_d')?.value;
+  return rocPartsToIso(y,m,d);
 }
 
 function openRepairForm(id, presetMachineId){
@@ -1433,8 +1464,7 @@ function openRepairForm(id, presetMachineId){
       </div>
       <div class="form-row">
         <div class="field"><label>維修日期 <span class="req">*</span></label>
-          <input type="date" id="f_date" value="${r?.date||todayISO()}" oninput="updateRocDatePreview()">
-          <div id="f_date_roc" style="font-size:11px;color:var(--text-faint);margin-top:4px;font-family:var(--font-mono)">${toROCDate(r?.date||todayISO())}</div>
+          ${rocDateFieldHTML('f_date', r?.date||todayISO())}
         </div>
         <div class="field"><label>里程 / 小時數</label><input type="number" id="f_mileage" value="${r?.mileage??''}" placeholder="輸入機台里程或小時數"></div>
       </div>
@@ -1467,7 +1497,7 @@ function openRepairForm(id, presetMachineId){
   openModal();
 }
 async function saveRepair(id){
-  const machineId = repairFormMachineId, date = val('f_date');
+  const machineId = repairFormMachineId, date = rocDateVal('f_date');
   const issueVal = val('f_issue').trim();
   if(!machineId){ showToast('找不到關聯機台，請從機台頁面新增維修紀錄', true); return; }
   if(!date || !issueVal){ showToast('請填寫維修日期與問題描述', true); return; }
@@ -1666,18 +1696,17 @@ function openMaintenanceForm(id, presetMachineId){
         </div>
         <div class="field"><label>保養週期 (天) <span class="req">*</span></label><input type="number" id="f_cycleDays" value="${item?.cycleDays||90}" min="1"></div>
       </div>
-      <div class="field"><label>上次保養日期 <span class="req">*</span></label><input type="date" id="f_lastDate" value="${item?.lastDate||todayISO()}"><div id="f_lastDate_roc" style="font-size:11px;color:var(--text-faint);margin-top:4px;font-family:var(--font-mono)"></div></div>
+      <div class="field"><label>上次保養日期 <span class="req">*</span></label>${rocDateFieldHTML('f_lastDate', item?.lastDate||todayISO())}</div>
       <div class="field"><label>保養內容 / 備註</label><textarea id="f_notes" placeholder="例如：更換機油、檢查煞車、補充油壓油">${esc(item?.notes||'')}</textarea></div>
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveMaintenance('${id||''}')">${ICONS.check}儲存</button></div>
   `;
   setupCombo('f_type', ()=>optionListValues('maintenance_type'));
-  attachRocPreview('f_lastDate', 'f_lastDate_roc');
   openModal();
 }
 async function saveMaintenance(id){
   const machineId = maintenanceFormMachineId;
-  const lastDate = val('f_lastDate'), cycleDays = Number(val('f_cycleDays'));
+  const lastDate = rocDateVal('f_lastDate'), cycleDays = Number(val('f_cycleDays'));
   if(!machineId){ showToast('找不到關聯機台，請從機台頁面新增保養排程', true); return; }
   if(!lastDate || !cycleDays){ showToast('請填寫上次保養日期與週期天數', true); return; }
   const data = { machineId, lastDate, cycleDays, type: val('f_type').trim(), notes: val('f_notes').trim() };
