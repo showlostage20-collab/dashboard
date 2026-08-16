@@ -731,7 +731,7 @@ function cycleGauge(item){
       <div class="cycle-fill ${st.state}" style="width:${Math.max(6,pctPix)}px"></div>
       <div class="cycle-marker" style="left:${Math.max(2,Math.min(118,pctPix))}px">${forkSvg}</div>
     </div>
-    <div class="cycle-label">${st.label} · 下次 ${nextDue(item)}</div>
+    <div class="cycle-label">${st.label} · 下次 ${toROCDate(nextDue(item))}</div>
   `;
 }
 
@@ -1095,7 +1095,7 @@ function renderCustomerDetail(){
       <tbody>${list.map(m=>`
         <tr>
           <td class="mono cell-strong">${esc(m.machineNo||'—')}</td>
-          <td class="mono">${esc(m.deliveryDate||'—')}</td>
+          <td class="mono">${toROCDate(m.deliveryDate)}</td>
           <td>${esc(m.brand)} <span style="color:var(--text-faint)">${esc(m.model)}</span></td>
           <td class="mono">${esc(m.engineNo||'—')}</td>
           <td><div class="row-actions">
@@ -1120,7 +1120,7 @@ function openMachineForm(id, presetCustomer){
         </div>
       </div>
       <div class="form-row">
-        <div class="field"><label>交車日期</label><input type="date" id="f_deliveryDate" value="${esc(m?.deliveryDate||'')}"></div>
+        <div class="field"><label>交車日期</label><input type="date" id="f_deliveryDate" value="${esc(m?.deliveryDate||'')}"><div id="f_deliveryDate_roc" style="font-size:11px;color:var(--text-faint);margin-top:4px;font-family:var(--font-mono)"></div></div>
         <div class="field"><label>動力類型</label>
           <div class="combo-wrap"><input id="f_powerType" class="combo-input" value="${esc(m?.powerType||'')}" placeholder="搜尋或選擇動力類型" autocomplete="off"><div class="combo-panel" id="f_powerType_panel"></div></div>
         </div>
@@ -1145,6 +1145,7 @@ function openMachineForm(id, presetCustomer){
   setupCombo('f_powerType', ()=>optionListValues('power_type'));
   setupCombo('f_brand', ()=>visibleBrandNames());
   setupCombo('f_capacity', ()=>optionListValues('capacity'));
+  attachRocPreview('f_deliveryDate', 'f_deliveryDate_roc');
   openModal();
 }
 function rerenderMachineViews(){
@@ -1209,7 +1210,7 @@ function renderMachineDetail(){
   c.innerHTML = `
     <div class="detail-header"><div class="detail-title">${esc(m.machineNo||'—')}<span class="mono">${esc(m.brand)} ${esc(m.model)} · ${esc(m.customer)}</span></div></div>
     <div class="detail-grid">
-      <div class="detail-item"><div class="k">交車日期</div><div class="v mono">${esc(m.deliveryDate||'—')}</div></div>
+      <div class="detail-item"><div class="k">交車日期</div><div class="v mono">${toROCDate(m.deliveryDate)}</div></div>
       <div class="detail-item"><div class="k">引擎號碼</div><div class="v mono">${esc(m.engineNo||'—')}</div></div>
       <div class="detail-item"><div class="k">噸位 / 承重</div><div class="v">${esc(m.capacity||'—')}</div></div>
       <div class="detail-item"><div class="k">客戶名稱</div><div class="v">${esc(m.customer)}</div></div>
@@ -1220,7 +1221,7 @@ function renderMachineDetail(){
       ${maint.length ? `
       <table><thead><tr><th>保養類型</th><th>週期</th><th>上次保養</th><th style="width:200px">下次保養狀態</th><th style="width:80px"></th></tr></thead>
       <tbody>${maint.map(item=>`
-        <tr><td class="cell-strong">${esc(item.type)}</td><td class="mono">${item.cycleDays} 天</td><td class="mono">${esc(item.lastDate||'—')}</td><td>${cycleGauge(item)}</td>
+        <tr><td class="cell-strong">${esc(item.type)}</td><td class="mono">${item.cycleDays} 天</td><td class="mono">${toROCDate(item.lastDate)}</td><td>${cycleGauge(item)}</td>
         <td><div class="row-actions"><button class="icon-btn" title="編輯" onclick="openMaintenanceForm('${item.id}')">${ICONS.edit}</button><button class="icon-btn" title="刪除" onclick="deleteMaintenance('${item.id}')">${ICONS.trash}</button></div></td></tr>`).join('')}
       </tbody></table>` : `<div class="empty" style="padding:34px"><div class="msg">尚未設定保養排程</div></div>`}
     </div>
@@ -1401,11 +1402,19 @@ function toROCDate(isoDate){
   if(parts.length<3) return isoDate;
   const rocYear = Number(parts[0]) - 1911;
   if(!rocYear) return isoDate;
-  return `民國${rocYear}/${parts[1]}/${parts[2]}`;
+  return `${rocYear}/${parts[1]}/${parts[2]}`;
 }
 function updateRocDatePreview(){
   const el = document.getElementById('f_date_roc');
   if(el) el.textContent = toROCDate(val('f_date'));
+}
+function attachRocPreview(inputId, previewId){
+  const inputEl = document.getElementById(inputId);
+  const previewEl = document.getElementById(previewId);
+  if(!inputEl || !previewEl) return;
+  const update = ()=>{ previewEl.textContent = inputEl.value ? toROCDate(inputEl.value) : ''; };
+  inputEl.addEventListener('input', update);
+  update();
 }
 
 function openRepairForm(id, presetMachineId){
@@ -1619,7 +1628,7 @@ function renderMaintenanceMachine(){
           <td class="cell-strong">${esc(item.type)}</td>
           <td>${esc(item.notes||'—')}</td>
           <td class="mono">${item.cycleDays} 天</td>
-          <td class="mono">${esc(item.lastDate||'—')}</td>
+          <td class="mono">${toROCDate(item.lastDate)}</td>
           <td>${cycleGauge(item)}</td>
           <td><div class="row-actions">
             <button class="icon-btn" title="標記今日已保養" onclick="markMaintained('${item.id}')">${ICONS.check}</button>
@@ -1657,12 +1666,13 @@ function openMaintenanceForm(id, presetMachineId){
         </div>
         <div class="field"><label>保養週期 (天) <span class="req">*</span></label><input type="number" id="f_cycleDays" value="${item?.cycleDays||90}" min="1"></div>
       </div>
-      <div class="field"><label>上次保養日期 <span class="req">*</span></label><input type="date" id="f_lastDate" value="${item?.lastDate||todayISO()}"></div>
+      <div class="field"><label>上次保養日期 <span class="req">*</span></label><input type="date" id="f_lastDate" value="${item?.lastDate||todayISO()}"><div id="f_lastDate_roc" style="font-size:11px;color:var(--text-faint);margin-top:4px;font-family:var(--font-mono)"></div></div>
       <div class="field"><label>保養內容 / 備註</label><textarea id="f_notes" placeholder="例如：更換機油、檢查煞車、補充油壓油">${esc(item?.notes||'')}</textarea></div>
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="saveMaintenance('${id||''}')">${ICONS.check}儲存</button></div>
   `;
   setupCombo('f_type', ()=>optionListValues('maintenance_type'));
+  attachRocPreview('f_lastDate', 'f_lastDate_roc');
   openModal();
 }
 async function saveMaintenance(id){
