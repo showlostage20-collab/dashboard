@@ -1479,6 +1479,7 @@ function openRepairForm(id, presetMachineId){
         </div>
         <div class="field"><label>里程 / 小時數</label><input type="number" id="f_mileage" value="${r?.mileage??''}" placeholder="輸入機台里程或小時數"></div>
       </div>
+      <div class="field"><label>狀態</label><select id="f_status">${['待處理','處理中','已完成','已取消'].map(s=>`<option ${(r?.status||'待處理')===s?'selected':''}>${s}</option>`).join('')}</select></div>
       <div class="field"><label>問題描述 <span class="req">*</span></label>
         <div class="combo-wrap"><input id="f_issue" class="combo-input" value="${esc(r?.issue||'')}" placeholder="搜尋或輸入新問題" autocomplete="off"><div class="combo-panel" id="f_issue_panel"></div></div>
       </div>
