@@ -706,7 +706,10 @@ function setupCombo(inputId, getOptions, onSelect){
     if(onSelect) onSelect(inputEl.value);
   });
   inputEl.addEventListener('blur', ()=>{ setTimeout(()=>panelEl.classList.remove('show'), 150); });
-  inputEl.addEventListener('keydown', e=>{ if(e.key==='Escape' || e.key==='Enter'){ panelEl.classList.remove('show'); if(e.key==='Enter') e.preventDefault(); } });
+  inputEl.addEventListener('keydown', e=>{
+    if(e.isComposing || e.keyCode===229) return; // 中文輸入法選字中，讓輸入法自己處理按鍵，不要搶著攔截
+    if(e.key==='Escape' || e.key==='Enter'){ panelEl.classList.remove('show'); if(e.key==='Enter') e.preventDefault(); }
+  });
 }
 
 /* maintenance cycle math */
@@ -935,7 +938,7 @@ function wireTodoSection(){
   setupCombo('todoIssue', ()=>visibleIssueNames());
   ['todoCustomer','todoIssue'].forEach(id=>{
     const el = document.getElementById(id);
-    el.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); addTodo(); } });
+    el.addEventListener('keydown', e=>{ if(e.isComposing || e.keyCode===229) return; if(e.key==='Enter'){ e.preventDefault(); addTodo(); } });
   });
 }
 async function addTodo(){
