@@ -1532,6 +1532,10 @@ function openRepairForm(id, presetMachineId){
         <div id="partsPickerRows"></div>
         <button type="button" class="btn btn-ghost btn-sm" onclick="addPartRow()">${ICONS.plus}加入零件</button>
       </div>
+      <div class="form-row">
+        <div class="field"><label>工資 (NT$)</label><input type="number" id="f_labor" value="${r?.labor||''}" placeholder="0" oninput="updateRepairCostPreview()"></div>
+        <div class="field"><label>費用合計 (NT$，自動計算)</label><input type="number" id="f_cost" value="${r?.cost||0}" disabled style="background:var(--gray-soft);color:var(--text-muted);"></div>
+      </div>
       <div class="settings-section" style="margin:4px 0 0 0;padding:16px 18px;">
         <h3 style="margin-bottom:12px">費用摘要</h3>
         <div style="display:flex;flex-direction:column;gap:8px;font-size:13.5px;">
@@ -1545,10 +1549,6 @@ function openRepairForm(id, presetMachineId){
           <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted)">工資小計</span><span class="mono" id="laborSubtotalDisplay">${money(0)}</span></div>
           <div style="display:flex;justify-content:space-between;font-weight:900;font-size:15px;border-top:1px solid var(--border);padding-top:10px;"><span>費用合計</span><span class="mono" id="costSummaryDisplay" style="color:var(--blue)">${money(0)}</span></div>
         </div>
-      </div>
-      <div class="form-row">
-        <div class="field"><label>工資 (NT$)</label><input type="number" id="f_labor" value="${r?.labor||''}" placeholder="0" oninput="updateRepairCostPreview()"></div>
-        <div class="field"><label>費用合計 (NT$，自動計算)</label><input type="number" id="f_cost" value="${r?.cost||0}" disabled style="background:var(--gray-soft);color:var(--text-muted);"></div>
       </div>
       <div class="field"><label>負責技師</label>
         <div class="combo-wrap"><input id="f_technician" class="combo-input" value="${esc(r?.technician||'')}" placeholder="搜尋或輸入技師姓名" autocomplete="off"><div class="combo-panel" id="f_technician_panel"></div></div>
