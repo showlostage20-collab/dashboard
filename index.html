@@ -878,6 +878,15 @@ function render(){
   (fns[currentView]||renderDashboard)();
 }
 function preserveFocus(id){ const el=document.getElementById(id); if(el){ el.focus(); const v=el.value; el.value=''; el.value=v; } }
+/* 搜尋框專用：等中文注音／拼音組字完成才觸發搜尋，避免組字中被重新渲染打斷 */
+function wireSearchInput(inputId, onChange){
+  const el = document.getElementById(inputId);
+  if(!el) return;
+  let composing = false;
+  el.addEventListener('compositionstart', ()=>{ composing = true; });
+  el.addEventListener('compositionend', ()=>{ composing = false; onChange(el.value); });
+  el.addEventListener('input', ()=>{ if(composing) return; onChange(el.value); });
+}
 
 /* ============================= TODOS (快速待辦) ============================= */
 let showDoneTodos = false;
@@ -1073,7 +1082,7 @@ function renderMachines(){
       }).join('')}</tbody></table>` : `<div class="empty">${ICONS.truck}<div class="msg">找不到符合條件的客戶</div><div class="hint">試試調整搜尋條件，或新增一台堆高機</div></div>`}
     </div>
   `;
-  document.getElementById('mSearch').oninput = e=>{ machineFilters.q=e.target.value; renderMachines(); preserveFocus('mSearch'); };
+  wireSearchInput('mSearch', v=>{ machineFilters.q=v; renderMachines(); preserveFocus('mSearch'); });
   c.querySelectorAll('.customer-row').forEach(row=>{
     row.addEventListener('click', ()=> openCustomerDetail(row.dataset.customer));
   });
@@ -1284,7 +1293,7 @@ function renderRepairs(){
       }).join('')}</tbody></table>` : `<div class="empty">${ICONS.truck}<div class="msg">找不到符合條件的客戶</div><div class="hint">試試調整搜尋條件</div></div>`}
     </div>
   `;
-  document.getElementById('rcSearch').oninput = e=>{ repairsCustomerQuery=e.target.value; renderRepairs(); preserveFocus('rcSearch'); };
+  wireSearchInput('rcSearch', v=>{ repairsCustomerQuery=v; renderRepairs(); preserveFocus('rcSearch'); });
   c.querySelectorAll('.rc-row').forEach(row=> row.addEventListener('click', ()=> openRepairsCustomer(row.dataset.customer)));
   c.querySelectorAll('.rc-view-btn').forEach(btn=> btn.addEventListener('click', e=>{ e.stopPropagation(); openRepairsCustomer(btn.dataset.customer); }));
 }
@@ -1367,7 +1376,7 @@ function renderRepairsMachine(){
         </tr>`).join('')}</tbody></table>` : `<div class="empty">${ICONS.wrench}<div class="msg">找不到符合條件的維修紀錄</div><div class="hint">試試調整搜尋條件，或新增第一筆維修紀錄</div></div>`}
     </div>
   `;
-  document.getElementById('rmSearch').oninput = e=>{ repairsMachineQuery=e.target.value; renderRepairsMachine(); preserveFocus('rmSearch'); };
+  wireSearchInput('rmSearch', v=>{ repairsMachineQuery=v; renderRepairsMachine(); preserveFocus('rmSearch'); });
 }
 function rerenderRepairViews(){
   if(currentView==='repairs-machine') renderRepairsMachine();
@@ -1584,7 +1593,7 @@ function renderMaintenance(){
       }).join('')}</tbody></table>` : `<div class="empty">${ICONS.truck}<div class="msg">找不到符合條件的客戶</div><div class="hint">試試調整搜尋條件</div></div>`}
     </div>
   `;
-  document.getElementById('mtcSearch').oninput = e=>{ maintenanceCustomerQuery=e.target.value; renderMaintenance(); preserveFocus('mtcSearch'); };
+  wireSearchInput('mtcSearch', v=>{ maintenanceCustomerQuery=v; renderMaintenance(); preserveFocus('mtcSearch'); });
   c.querySelectorAll('.mtc-row').forEach(row=> row.addEventListener('click', ()=> openMaintenanceCustomer(row.dataset.customer)));
   c.querySelectorAll('.mtc-view-btn').forEach(btn=> btn.addEventListener('click', e=>{ e.stopPropagation(); openMaintenanceCustomer(btn.dataset.customer); }));
 }
@@ -1951,7 +1960,7 @@ function renderParts(){
       }).join('')}</tbody></table>` : `<div class="empty">${ICONS.box}<div class="msg">找不到符合條件的零件</div><div class="hint">新增零件以開始管理庫存</div></div>`}
     </div>
   `;
-  document.getElementById('pSearch').oninput = e=>{ partsFilters.q=e.target.value; renderParts(); preserveFocus('pSearch'); };
+  wireSearchInput('pSearch', v=>{ partsFilters.q=v; renderParts(); preserveFocus('pSearch'); });
 }
 function openPartForm(id){
   const p = id ? getPart(id) : null;
@@ -2026,7 +2035,7 @@ function renderVendors(){
       </tbody></table>` : `<div class="empty">${ICONS.building}<div class="msg">尚未建立任何廠商資料</div><div class="hint">新增零件供應商或外包維修廠商</div></div>`}
     </div>
   `;
-  document.getElementById('vSearch').oninput = e=>{ vendorFilters.q=e.target.value; renderVendors(); preserveFocus('vSearch'); };
+  wireSearchInput('vSearch', v=>{ vendorFilters.q=v; renderVendors(); preserveFocus('vSearch'); });
 }
 function openVendorForm(id){
   const v = id ? getVendor(id) : null;
@@ -2093,7 +2102,7 @@ function renderCustomers(){
       }).join('')}</tbody></table>` : `<div class="empty">${ICONS.users}<div class="msg">尚未建立任何客戶資料</div><div class="hint">新增客戶後，堆高機表單的客戶名稱就能直接下拉選擇</div></div>`}
     </div>
   `;
-  document.getElementById('cuSearch').oninput = e=>{ customerFilters.q=e.target.value; renderCustomers(); preserveFocus('cuSearch'); };
+  wireSearchInput('cuSearch', v=>{ customerFilters.q=v; renderCustomers(); preserveFocus('cuSearch'); });
 }
 function openCustomerForm(id){
   const x = id ? getCustomer(id) : null;
