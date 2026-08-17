@@ -324,7 +324,7 @@
   .field .req{color:var(--red);}
   .modal-foot{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;}
 
-  .parts-picker-row{display:grid;grid-template-columns:1fr 70px 90px 32px;gap:8px;align-items:center;margin-bottom:8px;}
+  .parts-picker-row{display:grid;grid-template-columns:1fr 70px 55px 80px 32px;gap:8px;align-items:center;margin-bottom:8px;}
   .parts-picker-row select, .parts-picker-row input{padding:8px 10px;border:1px solid var(--border-strong);border-radius:7px;font-size:13px;font-family:var(--font-ui);}
   .parts-picker-remove{width:32px;height:32px;border-radius:7px;border:1px solid var(--border-strong);background:#fff;color:var(--red);display:flex;align-items:center;justify-content:center;cursor:pointer;}
   .parts-picker-remove:hover{background:var(--red-soft);}
@@ -1397,8 +1397,9 @@ function renderPartsPicker(){
     return `
     <div class="parts-picker-row">
       <div class="combo-wrap"><input id="partsRow_${i}" class="combo-input" value="${esc(p?partComboLabel(p):'')}" placeholder="搜尋零件" autocomplete="off"><div class="combo-panel" id="partsRow_${i}_panel"></div></div>
-      <input type="number" min="1" value="${row.qty}" placeholder="數量" oninput="currentRepairParts[${i}].qty=this.value; updateRepairCostPreview();">
-      <input type="number" min="0" value="${row.amount||''}" placeholder="金額" oninput="currentRepairParts[${i}].amount=this.value; updateRepairCostPreview();">
+      <input type="number" min="0" value="${row.unitPrice||''}" placeholder="單價" oninput="handlePartRowRecalc(${i}, 'unitPrice', this.value)">
+      <input type="number" min="1" value="${row.qty}" placeholder="數量" oninput="handlePartRowRecalc(${i}, 'qty', this.value)">
+      <input type="number" min="0" id="partsAmount_${i}" value="${row.amount||''}" placeholder="金額" oninput="handlePartRowAmountChange(${i}, this.value)">
       <div class="parts-picker-remove" onclick="currentRepairParts.splice(${i},1); renderPartsPicker(); updateRepairCostPreview();">✕</div>
     </div>
   `;
@@ -1409,15 +1410,50 @@ function renderPartsPicker(){
 }
 function handlePartRowInput(i, v){
   const match = DB.parts.find(p=>partComboLabel(p)===v);
-  currentRepairParts[i].partId = match ? match.id : '';
+  const row = currentRepairParts[i];
+  row.partId = match ? match.id : '';
+  if(match){
+    row.unitPrice = Number(match.unitPrice)||0;
+    row.amountManual = false;
+    row.amount = row.unitPrice * (Number(row.qty)||0);
+    renderPartsPicker();
+  }
+  updateRepairCostPreview();
 }
-function addPartRow(){ currentRepairParts.push({partId:'', qty:1, amount:''}); renderPartsPicker(); }
+function handlePartRowRecalc(i, field, value){
+  const row = currentRepairParts[i];
+  row[field] = value;
+  if(!row.amountManual){
+    row.amount = (Number(row.unitPrice)||0) * (Number(row.qty)||0);
+    const amountInput = document.getElementById(`partsAmount_${i}`);
+    if(amountInput) amountInput.value = row.amount || '';
+  }
+  updateRepairCostPreview();
+}
+function handlePartRowAmountChange(i, value){
+  currentRepairParts[i].amount = value;
+  currentRepairParts[i].amountManual = true;
+  updateRepairCostPreview();
+}
+function addPartRow(){ currentRepairParts.push({partId:'', qty:1, unitPrice:0, amount:0, amountManual:false}); renderPartsPicker(); }
+function repairPartsSubtotal(){ return currentRepairParts.reduce((sum,p)=> sum + (Number(p.amount)||0), 0); }
 function updateRepairCostPreview(){
-  const partsTotal = currentRepairParts.reduce((sum,p)=> sum + (Number(p.amount)||0), 0);
+  const partsSubtotal = repairPartsSubtotal();
+  const discountPercent = Number(document.getElementById('f_discountPercent')?.value)||0;
+  const discountAmount = partsSubtotal * discountPercent / 100;
+  const discountedSubtotal = partsSubtotal - discountAmount;
   const laborEl = document.getElementById('f_labor');
   const labor = laborEl ? (Number(laborEl.value)||0) : 0;
+  const cost = discountedSubtotal + labor;
+
+  const setText = (id, text)=>{ const el = document.getElementById(id); if(el) el.textContent = text; };
+  setText('partsSubtotalDisplay', money(partsSubtotal));
+  setText('discountAmountDisplay', partsSubtotal? '-'+money(discountAmount) : money(0));
+  setText('discountedSubtotalDisplay', money(discountedSubtotal));
+  setText('laborSubtotalDisplay', money(labor));
+  setText('costSummaryDisplay', money(cost));
   const costEl = document.getElementById('f_cost');
-  if(costEl) costEl.value = partsTotal + labor;
+  if(costEl) costEl.value = cost;
 }
 function toROCDate(isoDate){
   if(!isoDate) return '—';
@@ -1464,7 +1500,12 @@ function openRepairForm(id, presetMachineId){
   const machineId = r ? r.machineId : presetMachineId;
   const m = machineId ? getMachine(machineId) : null;
   repairFormMachineId = machineId || null;
-  currentRepairParts = r && r.partsUsed ? JSON.parse(JSON.stringify(r.partsUsed)) : [];
+  currentRepairParts = r && r.partsUsed ? JSON.parse(JSON.stringify(r.partsUsed)).map(row=>{
+    const unitPrice = row.unitPrice!=null ? Number(row.unitPrice) : (getPart(row.partId)?.unitPrice || 0);
+    const amount = Number(row.amount)||0;
+    const amountManual = row.amountManual!=null ? row.amountManual : (amount !== unitPrice*Number(row.qty||0));
+    return { partId: row.partId, qty: row.qty, unitPrice, amount, amountManual };
+  }) : [];
   document.getElementById('modalBox').outerHTML = `<div class="modal wide" id="modalBox">
     <div class="modal-head"><h2>${r?'編輯維修紀錄':'新增維修紀錄'}</h2><div class="modal-close" onclick="closeModal()">✕</div></div>
     <div class="modal-body">
@@ -1484,16 +1525,30 @@ function openRepairForm(id, presetMachineId){
       </div>
       <div class="field"><label>處理方式</label><textarea id="f_action" placeholder="例如：更換油封、清洗油路">${esc(r?.action||'')}</textarea></div>
       <div class="field">
-        <label>使用零件（自動扣減庫存，可手動填入個別金額）</label>
-        <div style="display:grid;grid-template-columns:1fr 70px 90px 32px;gap:8px;font-size:11px;color:var(--text-muted);padding:0 2px 4px 2px;">
-          <div>零件</div><div>數量</div><div>金額</div><div></div>
+        <label>使用零件（自動扣減庫存，單價自動帶出，金額可手動修改）</label>
+        <div style="display:grid;grid-template-columns:1fr 70px 55px 80px 32px;gap:8px;font-size:11px;color:var(--text-muted);padding:0 2px 4px 2px;">
+          <div>零件</div><div>單價</div><div>數量</div><div>金額</div><div></div>
         </div>
         <div id="partsPickerRows"></div>
         <button type="button" class="btn btn-ghost btn-sm" onclick="addPartRow()">${ICONS.plus}加入零件</button>
       </div>
+      <div class="settings-section" style="margin:4px 0 0 0;padding:16px 18px;">
+        <h3 style="margin-bottom:12px">費用摘要</h3>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:13.5px;">
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted)">零件原價小計</span><span class="mono" id="partsSubtotalDisplay">${money(0)}</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="color:var(--text-muted)">零件統一折扣 (%)</span>
+            <input type="number" id="f_discountPercent" min="0" max="100" value="${r?.discountPercent||0}" style="width:90px;padding:6px 8px;border:1px solid var(--border-strong);border-radius:7px;text-align:right;font-family:var(--font-mono);" oninput="updateRepairCostPreview()">
+          </div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted)">折扣金額</span><span class="mono" id="discountAmountDisplay" style="color:var(--red)">${money(0)}</span></div>
+          <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed var(--border);padding-top:8px;"><span>零件折扣後小計</span><span class="mono" id="discountedSubtotalDisplay">${money(0)}</span></div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-muted)">工資小計</span><span class="mono" id="laborSubtotalDisplay">${money(0)}</span></div>
+          <div style="display:flex;justify-content:space-between;font-weight:900;font-size:15px;border-top:1px solid var(--border);padding-top:10px;"><span>費用合計</span><span class="mono" id="costSummaryDisplay" style="color:var(--blue)">${money(0)}</span></div>
+        </div>
+      </div>
       <div class="form-row">
         <div class="field"><label>工資 (NT$)</label><input type="number" id="f_labor" value="${r?.labor||''}" placeholder="0" oninput="updateRepairCostPreview()"></div>
-        <div class="field"><label>費用 (NT$，自動計算)</label><input type="number" id="f_cost" value="${r?.cost||0}" disabled style="background:var(--gray-soft);color:var(--text-muted);"></div>
+        <div class="field"><label>費用合計 (NT$，自動計算)</label><input type="number" id="f_cost" value="${r?.cost||0}" disabled style="background:var(--gray-soft);color:var(--text-muted);"></div>
       </div>
       <div class="field"><label>負責技師</label>
         <div class="combo-wrap"><input id="f_technician" class="combo-input" value="${esc(r?.technician||'')}" placeholder="搜尋或輸入技師姓名" autocomplete="off"><div class="combo-panel" id="f_technician_panel"></div></div>
@@ -1512,12 +1567,17 @@ async function saveRepair(id){
   const issueVal = val('f_issue').trim();
   if(!machineId){ showToast('找不到關聯機台，請從機台頁面新增維修紀錄', true); return; }
   if(!date || !issueVal){ showToast('請填寫維修日期與問題描述', true); return; }
-  const partsUsed = currentRepairParts.filter(p=>p.partId && Number(p.qty)>0).map(p=>({partId:p.partId, qty:Number(p.qty), amount:Number(p.amount)||0}));
+  const partsUsed = currentRepairParts.filter(p=>p.partId && Number(p.qty)>0).map(p=>({
+    partId:p.partId, qty:Number(p.qty), unitPrice:Number(p.unitPrice)||0, amount:Number(p.amount)||0, amountManual:!!p.amountManual
+  }));
   const laborVal = val('f_labor') ? Number(val('f_labor')) : 0;
-  const partsTotal = partsUsed.reduce((sum,p)=>sum+p.amount,0);
+  const discountPercent = Number(val('f_discountPercent'))||0;
+  const partsSubtotal = partsUsed.reduce((sum,p)=>sum+p.amount,0);
+  const discountAmount = partsSubtotal * discountPercent / 100;
+  const discountedSubtotal = partsSubtotal - discountAmount;
   const mileageVal = val('f_mileage') ? Number(val('f_mileage')) : null;
   const data = { machineId, date, issue:issueVal, action:val('f_action').trim(), partsUsed, mileage:mileageVal, labor:laborVal,
-    cost: partsTotal + laborVal, technician: val('f_technician').trim() };
+    discountPercent, cost: discountedSubtotal + laborVal, technician: val('f_technician').trim() };
   const old = id ? DB.repairs.find(x=>x.id===id) : null;
   const row = id ? { ...data, id } : { ...data, id: uid() };
 
