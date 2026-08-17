@@ -673,6 +673,7 @@ function setupCombo(inputId, getOptions, onSelect){
   const inputEl = document.getElementById(inputId);
   const panelEl = document.getElementById(inputId+'_panel');
   if(!inputEl || !panelEl) return;
+  let composing = false;
   function renderPanel(){
     const q = (inputEl.value||'').trim().toLowerCase();
     const options = getOptions();
@@ -692,8 +693,18 @@ function setupCombo(inputId, getOptions, onSelect){
       panelEl.innerHTML = `<div class="combo-empty">${trimmed? '沒有符合的選項，可直接使用「'+esc(trimmed)+'」' : '沒有可選擇的選項'}</div>`;
     }
   }
+  inputEl.addEventListener('compositionstart', ()=>{ composing = true; });
+  inputEl.addEventListener('compositionend', ()=>{
+    composing = false;
+    renderPanel(); panelEl.classList.add('show');
+    if(onSelect) onSelect(inputEl.value);
+  });
   inputEl.addEventListener('focus', ()=>{ renderPanel(); panelEl.classList.add('show'); });
-  inputEl.addEventListener('input', ()=>{ renderPanel(); panelEl.classList.add('show'); if(onSelect) onSelect(inputEl.value); });
+  inputEl.addEventListener('input', ()=>{
+    if(composing) return; // 中文注音／拼音組字中，先不要搶著重新渲染，避免符號重複或打不出字
+    renderPanel(); panelEl.classList.add('show');
+    if(onSelect) onSelect(inputEl.value);
+  });
   inputEl.addEventListener('blur', ()=>{ setTimeout(()=>panelEl.classList.remove('show'), 150); });
   inputEl.addEventListener('keydown', e=>{ if(e.key==='Escape' || e.key==='Enter'){ panelEl.classList.remove('show'); if(e.key==='Enter') e.preventDefault(); } });
 }
