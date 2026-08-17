@@ -709,19 +709,6 @@ function setupCombo(inputId, getOptions, onSelect){
   inputEl.addEventListener('keydown', e=>{ if(e.key==='Escape' || e.key==='Enter'){ panelEl.classList.remove('show'); if(e.key==='Enter') e.preventDefault(); } });
 }
 
-function statusBadge(status){
-  const map = {
-    '使用中':'green', '維修中':'amber', '停用':'gray',
-    '待處理':'amber', '處理中':'blue', '已完成':'green', '已取消':'gray'
-  };
-  return `<span class="badge ${map[status]||'gray'}"><span class="badge-dot" style="background:currentColor"></span>${esc(status)}</span>`;
-}
-/* 機台狀態不再手動輸入，改為依「是否有尚未完成的維修單」自動判斷 */
-function machineDerivedStatus(machineId){
-  const hasOpenRepair = DB.repairs.some(r=>r.machineId===machineId && r.status!=='已完成' && r.status!=='已取消');
-  return hasOpenRepair ? '維修中' : '使用中';
-}
-
 /* maintenance cycle math */
 function addDays(dateStr, days){ const d = new Date(dateStr); d.setDate(d.getDate()+Number(days)); return d.toISOString().slice(0,10); }
 function nextDue(item){ return item.lastDate ? addDays(item.lastDate, item.cycleDays) : null; }
@@ -982,8 +969,9 @@ async function deleteTodo(id){
 function renderDashboard(){
   const c = document.getElementById('content');
   const total = DB.machines.length;
-  const inRepair = DB.machines.filter(m=>machineDerivedStatus(m.id)==='維修中').length;
-  const openRepairs = DB.repairs.filter(r=>r.status!=='已完成' && r.status!=='已取消').length;
+  const thisMonthKey = todayISO().slice(0,7);
+  const repairsThisMonth = DB.repairs.filter(r=>(r.date||'').slice(0,7)===thisMonthKey).length;
+  const lowStockCount = DB.parts.filter(p=>Number(p.stock) <= Number(p.minStock||0)).length;
 
   const dueList = DB.maintenance.map(item=>({item, st:cycleStatus(item)}))
     .filter(x=>isDueByEndOfThisMonth(x.item))
@@ -995,8 +983,8 @@ function renderDashboard(){
   c.innerHTML = `
     <div class="stat-grid">
       <div class="stat-card blue"><div class="bar"></div><div class="label">機台總數</div><div class="value">${total}</div></div>
-      <div class="stat-card amber"><div class="bar"></div><div class="label">維修中機台</div><div class="value">${inRepair}</div></div>
-      <div class="stat-card red"><div class="bar"></div><div class="label">待處理維修單</div><div class="value">${openRepairs}</div></div>
+      <div class="stat-card amber"><div class="bar"></div><div class="label">本月維修次數</div><div class="value">${repairsThisMonth}</div></div>
+      <div class="stat-card red"><div class="bar"></div><div class="label">零件低庫存</div><div class="value">${lowStockCount}</div></div>
       <div class="stat-card purple"><div class="bar"></div><div class="label">本月需保養</div><div class="value">${dueList.length}</div></div>
     </div>
 
@@ -1024,10 +1012,10 @@ function renderDashboard(){
         <div class="section-title" style="margin-top:0"><span>最新維修紀錄</span></div>
         <div class="card">
           ${recentRepairs.length ? `
-          <table><thead><tr><th>日期</th><th>機台</th><th>客戶</th><th>問題描述</th><th>狀態</th></tr></thead>
+          <table><thead><tr><th>日期</th><th>機台</th><th>客戶</th><th>問題描述</th></tr></thead>
           <tbody>${recentRepairs.map(r=>{
             const m = getMachine(r.machineId);
-            return `<tr><td class="mono">${toROCDate(r.date)}</td><td class="cell-strong">${esc(m?m.machineNo:'—')}</td><td>${esc(m?m.customer:'—')}</td><td>${esc(r.issue)}</td><td>${statusBadge(r.status)}</td></tr>`;
+            return `<tr><td class="mono">${toROCDate(r.date)}</td><td class="cell-strong">${esc(m?m.machineNo:'—')}</td><td>${esc(m?m.customer:'—')}</td><td>${esc(r.issue)}</td></tr>`;
           }).join('')}</tbody></table>` : `<div class="empty">${ICONS.wrench}<div class="msg">還沒有維修紀錄</div></div>`}
         </div>
       </div>
@@ -1479,7 +1467,6 @@ function openRepairForm(id, presetMachineId){
         </div>
         <div class="field"><label>里程 / 小時數</label><input type="number" id="f_mileage" value="${r?.mileage??''}" placeholder="輸入機台里程或小時數"></div>
       </div>
-      <div class="field"><label>狀態</label><select id="f_status">${['待處理','處理中','已完成','已取消'].map(s=>`<option ${(r?.status||'待處理')===s?'selected':''}>${s}</option>`).join('')}</select></div>
       <div class="field"><label>問題描述 <span class="req">*</span></label>
         <div class="combo-wrap"><input id="f_issue" class="combo-input" value="${esc(r?.issue||'')}" placeholder="搜尋或輸入新問題" autocomplete="off"><div class="combo-panel" id="f_issue_panel"></div></div>
       </div>
@@ -1518,7 +1505,7 @@ async function saveRepair(id){
   const partsTotal = partsUsed.reduce((sum,p)=>sum+p.amount,0);
   const mileageVal = val('f_mileage') ? Number(val('f_mileage')) : null;
   const data = { machineId, date, issue:issueVal, action:val('f_action').trim(), partsUsed, mileage:mileageVal, labor:laborVal,
-    cost: partsTotal + laborVal, technician: val('f_technician').trim(), status: val('f_status') };
+    cost: partsTotal + laborVal, technician: val('f_technician').trim() };
   const old = id ? DB.repairs.find(x=>x.id===id) : null;
   const row = id ? { ...data, id } : { ...data, id: uid() };
 
@@ -2184,11 +2171,6 @@ function renderReports(){
   const maxCount = Math.max(1, ...countByMonth);
   const maxCost = Math.max(1, ...costByMonth);
 
-  const statusCounts = {'使用中':0,'維修中':0};
-  DB.machines.forEach(m=>{ statusCounts[machineDerivedStatus(m.id)]++; });
-  const totalM = Math.max(1, DB.machines.length);
-  const statusColors = {'使用中':'var(--green)','維修中':'var(--amber)'};
-
   const powerCounts = {};
   DB.machines.forEach(m=>{ powerCounts[m.powerType] = (powerCounts[m.powerType]||0)+1; });
 
@@ -2217,14 +2199,7 @@ function renderReports(){
         </div>
       </div>
       <div class="report-card">
-        <h3>機台狀態分佈</h3>
-        <div class="stacked-bar">
-          ${Object.entries(statusCounts).map(([k,v])=>v>0?`<div class="seg" style="width:${v/totalM*100}%;background:${statusColors[k]}"></div>`:'').join('')}
-        </div>
-        <div class="legend">
-          ${Object.entries(statusCounts).map(([k,v])=>`<div class="item"><span class="sw" style="background:${statusColors[k]}"></span>${k} ${v} 台</div>`).join('')}
-        </div>
-        <h3 style="margin-top:24px">動力類型分佈</h3>
+        <h3>動力類型分佈</h3>
         <div class="legend" style="margin-top:0">
           ${Object.entries(powerCounts).map(([k,v])=>`<div class="item"><span class="power-tag ${esc(k)}">${esc(k)}</span> ${v} 台</div>`).join('') || '<div class="item">尚無機台資料</div>'}
         </div>
