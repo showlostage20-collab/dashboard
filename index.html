@@ -1027,7 +1027,7 @@ function renderDashboard(){
           <table><thead><tr><th>日期</th><th>機台</th><th>客戶</th><th>問題描述</th></tr></thead>
           <tbody>${recentRepairs.map(r=>{
             const m = getMachine(r.machineId);
-            return `<tr><td class="mono">${toROCDate(r.date)}</td><td class="cell-strong">${esc(m?m.machineNo:'—')}</td><td>${esc(m?m.customer:'—')}</td><td>${esc(r.issue)}</td></tr>`;
+            return `<tr class="dash-repair-row" data-id="${r.id}" style="cursor:pointer"><td class="mono">${toROCDate(r.date)}</td><td class="cell-strong">${esc(m?m.machineNo:'—')}</td><td>${esc(m?m.customer:'—')}</td><td>${esc(r.issue)}</td></tr>`;
           }).join('')}</tbody></table>` : `<div class="empty">${ICONS.wrench}<div class="msg">還沒有維修紀錄</div></div>`}
         </div>
       </div>
@@ -1043,6 +1043,9 @@ function renderDashboard(){
     </div>
   `;
   wireTodoSection();
+  document.querySelectorAll('.dash-repair-row').forEach(row=>{
+    row.addEventListener('click', ()=> openRepairForm(row.dataset.id));
+  });
 }
 
 /* ============================= MACHINES ============================= */
