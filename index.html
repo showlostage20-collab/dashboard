@@ -343,6 +343,7 @@
   .todo-item .cust{font-weight:700;font-size:13.5px;}
   .todo-item .issue{font-size:12.5px;color:var(--text-muted);margin-top:2px;}
   .todo-item .time{font-size:11px;color:var(--text-faint);font-family:var(--font-mono);margin-top:3px;}
+  .todo-item .time .due{font-size:12.5px;color:var(--amber);font-weight:700;}
   .todo-item.done{opacity:.5;}
   .todo-item.done .cust, .todo-item.done .issue{text-decoration:line-through;}
 
@@ -928,7 +929,7 @@ function renderTodoSection(){
             <div class="info">
               <div class="cust">${esc(t.customer)}</div>
               <div class="issue">${esc(t.issue)}</div>
-              <div class="time">${todoTimeLabel(t.createdAt)}${todoDueLabel(t)? ' · '+todoDueLabel(t) : ''}</div>
+              <div class="time">${todoTimeLabel(t.createdAt)}${todoDueLabel(t)? ` · <span class="due">${todoDueLabel(t)}</span>` : ''}</div>
             </div>
             <div class="row-actions">
               ${t.done ? '' : `<button class="icon-btn" title="標記完成" onclick="toggleTodoDone('${t.id}')">${ICONS.check}</button>`}
