@@ -344,6 +344,14 @@
   .todo-item .issue{font-size:12.5px;color:var(--text-muted);margin-top:2px;}
   .todo-item .time{font-size:11px;color:var(--text-faint);font-family:var(--font-mono);margin-top:3px;}
   .todo-item .time .due{font-size:12.5px;color:var(--amber);font-weight:700;}
+  .todo-item .time .due-today{color:var(--red);}
+  .todo-item .time .due-overdue{color:var(--red);text-decoration:underline;}
+  .todo-item .time .due-future{color:var(--amber);}
+  .todo-due-alert{
+    display:flex;gap:10px;align-items:flex-start;background:var(--red-soft);color:var(--red);
+    border:1px solid #f6c2c2;border-radius:9px;padding:12px 14px;margin-bottom:14px;font-size:13px;line-height:1.6;
+  }
+  .todo-due-alert svg{width:18px;height:18px;flex-shrink:0;margin-top:1px;}
   .todo-item.done{opacity:.5;}
   .todo-item.done .cust, .todo-item.done .issue{text-decoration:line-through;}
 
@@ -909,14 +917,30 @@ function todoDueLabel(t){
   if(!t.dueDate) return '';
   return `預計 ${toROCDate(t.dueDate)}`;
 }
+function todoDueStatus(t){
+  if(!t.dueDate) return null;
+  if(t.dueDate < todayISO()) return 'overdue';
+  if(t.dueDate === todayISO()) return 'today';
+  return 'future';
+}
 function renderTodoSection(){
   const all = [...DB.todos].sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
   const pending = all.filter(t=>!t.done);
   const done = all.filter(t=>t.done);
   const visible = showDoneTodos ? all : pending;
+  const dueToday = pending.filter(t=>todoDueStatus(t)==='today');
+  const overdue = pending.filter(t=>todoDueStatus(t)==='overdue');
   return `
     <div class="section-title" style="margin-top:0"><span>待辦事項</span><span class="badge ${pending.length?'amber':'green'}">${pending.length} 筆待處理</span></div>
     <div class="card" style="padding:16px 18px 18px 18px;overflow:visible;margin-bottom:22px;">
+      ${dueToday.length || overdue.length ? `
+      <div class="todo-due-alert">
+        ${ICONS.alert}
+        <div>
+          ${dueToday.length ? `<div><strong>今天到期：</strong>${dueToday.map(t=>esc(t.customer)+'（'+esc(t.issue)+'）').join('、')}</div>` : ''}
+          ${overdue.length ? `<div><strong>已逾期：</strong>${overdue.map(t=>esc(t.customer)+'（'+esc(t.issue)+'）').join('、')}</div>` : ''}
+        </div>
+      </div>` : ''}
       <div class="todo-quick-add">
         <div class="combo-wrap"><input id="todoCustomer" class="combo-input" placeholder="客戶名稱" autocomplete="off"><div class="combo-panel" id="todoCustomer_panel"></div></div>
         <div class="combo-wrap"><input id="todoIssue" class="combo-input" placeholder="問題描述" autocomplete="off"><div class="combo-panel" id="todoIssue_panel"></div></div>
@@ -924,19 +948,22 @@ function renderTodoSection(){
         <button class="btn btn-primary btn-sm" id="todoAddBtn">${ICONS.plus}新增待辦</button>
       </div>
       <div id="todoList">
-        ${visible.length ? visible.map(t=>`
+        ${visible.length ? visible.map(t=>{
+          const dueStatus = todoDueStatus(t);
+          return `
           <div class="todo-item ${t.done?'done':''}">
             <div class="info">
               <div class="cust">${esc(t.customer)}</div>
               <div class="issue">${esc(t.issue)}</div>
-              <div class="time">${todoTimeLabel(t.createdAt)}${todoDueLabel(t)? ` · <span class="due">${todoDueLabel(t)}</span>` : ''}</div>
+              <div class="time">${todoTimeLabel(t.createdAt)}${todoDueLabel(t)? ` · <span class="due due-${dueStatus}">${todoDueLabel(t)}</span>` : ''}</div>
             </div>
             <div class="row-actions">
               ${t.done ? '' : `<button class="icon-btn" title="標記完成" onclick="toggleTodoDone('${t.id}')">${ICONS.check}</button>`}
               <button class="icon-btn" title="刪除" onclick="deleteTodo('${t.id}')">${ICONS.trash}</button>
             </div>
           </div>
-        `).join('') : `<div style="text-align:center;color:var(--text-faint);font-size:13px;padding:22px 0">目前沒有待辦事項，接到客戶來電時可以在上面快速記一筆</div>`}
+        `;
+        }).join('') : `<div style="text-align:center;color:var(--text-faint);font-size:13px;padding:22px 0">目前沒有待辦事項，接到客戶來電時可以在上面快速記一筆</div>`}
       </div>
       ${done.length ? `<div style="margin-top:12px;text-align:center"><button class="btn btn-ghost btn-sm" onclick="showDoneTodos=!showDoneTodos; renderDashboard();">${showDoneTodos? '隱藏已完成' : `顯示已完成（${done.length}）`}</button></div>` : ''}
     </div>
