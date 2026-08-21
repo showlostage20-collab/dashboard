@@ -332,6 +332,11 @@
   /* ---------- Quick-add todos (dashboard) ---------- */
   .todo-quick-add{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
   .todo-quick-add .combo-wrap{flex:1;min-width:160px;}
+  .todo-due-date{
+    border:1px solid var(--border-strong);border-radius:8px;padding:10px 10px;
+    font-family:var(--font-mono);font-size:13px;background:#fff;color:var(--text);flex-shrink:0;
+  }
+  .todo-due-date:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft);}
   .todo-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:8px;border:1px solid var(--border);margin-bottom:8px;}
   .todo-item:last-child{margin-bottom:0;}
   .todo-item .info{flex:1;min-width:0;}
@@ -417,6 +422,7 @@
   @media(max-width:900px){
     .field input, .field select, .field textarea{font-size:16px;padding:11px 12px;}
     .combo-input{font-size:16px;padding:11px 36px 11px 12px;}
+    .roc-date-group input, .todo-due-date{font-size:16px;}
     .icon-btn{width:34px;height:34px;}
     .nav-item{padding:12px 12px;}
   }
@@ -898,6 +904,10 @@ function todoTimeLabel(iso){
   if(isNaN(d)) return '';
   return d.toLocaleString('zh-TW', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
 }
+function todoDueLabel(t){
+  if(!t.dueDate) return '';
+  return `預計 ${toROCDate(t.dueDate)}`;
+}
 function renderTodoSection(){
   const all = [...DB.todos].sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
   const pending = all.filter(t=>!t.done);
@@ -909,6 +919,7 @@ function renderTodoSection(){
       <div class="todo-quick-add">
         <div class="combo-wrap"><input id="todoCustomer" class="combo-input" placeholder="客戶名稱" autocomplete="off"><div class="combo-panel" id="todoCustomer_panel"></div></div>
         <div class="combo-wrap"><input id="todoIssue" class="combo-input" placeholder="問題描述" autocomplete="off"><div class="combo-panel" id="todoIssue_panel"></div></div>
+        <input type="date" id="todoDue" class="todo-due-date" title="預計完成日期">
         <button class="btn btn-primary btn-sm" id="todoAddBtn">${ICONS.plus}新增待辦</button>
       </div>
       <div id="todoList">
@@ -917,7 +928,7 @@ function renderTodoSection(){
             <div class="info">
               <div class="cust">${esc(t.customer)}</div>
               <div class="issue">${esc(t.issue)}</div>
-              <div class="time">${todoTimeLabel(t.createdAt)}</div>
+              <div class="time">${todoTimeLabel(t.createdAt)}${todoDueLabel(t)? ' · '+todoDueLabel(t) : ''}</div>
             </div>
             <div class="row-actions">
               ${t.done ? '' : `<button class="icon-btn" title="標記完成" onclick="toggleTodoDone('${t.id}')">${ICONS.check}</button>`}
@@ -945,7 +956,8 @@ async function addTodo(){
   const customer = document.getElementById('todoCustomer').value.trim();
   const issue = document.getElementById('todoIssue').value.trim();
   if(!customer || !issue){ showToast('請填寫客戶與問題', true); return; }
-  const row = {id:uid(), customer, issue, createdAt:new Date().toISOString(), done:false};
+  const dueDate = val('todoDue') || null;
+  const row = {id:uid(), customer, issue, createdAt:new Date().toISOString(), done:false, dueDate};
   const err = await upsertRow('todos', row);
   if(err){ showToast('儲存失敗：'+err, true); return; }
   if(!DB.issueTypes.some(t=>t.name===issue)){
