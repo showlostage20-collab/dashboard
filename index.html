@@ -2450,6 +2450,14 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
   await loadData();
   renderNav();
   render();
+  /* 每分鐘檢查一次，讓 Dashboard 的到期提醒能在頁面開著不重整的情況下自動更新（例如跨過午夜） */
+  setInterval(()=>{
+    if(currentView === 'dashboard'){
+      const active = document.activeElement;
+      const isTypingInTodo = active && ['todoCustomer','todoIssue','todoDue'].includes(active.id);
+      if(!isTypingInTodo) renderDashboard();
+    }
+  }, 60000);
 })();
 </script>
 </body>
